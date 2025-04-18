@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UATM - Urban Air Traffic Management</title>
+    <link rel="stylesheet" href="/src/styles/cursor.css">
+    
+    <!-- Custom Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Exo+2:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Chakra+Petch:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Dependencies -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+    <script src="/src/js/magiccursor.js" defer></script>
+
+    <!-- Cursor Styles -->
+    <style>
+      /* Magic Cursor Styles */
+      .cb-cursor {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 150;
+        contain: layout style size;
+        pointer-events: none;
+        will-change: transform;
+        transition: opacity 0.3s, color 0.4s;
+        mix-blend-mode: difference;
+      }
+
+      .cb-cursor::before {
+        content: "";
+        position: absolute;
+        top: -24px;
+        left: -24px;
+        display: block;
+        width: 48px;
+        height: 48px;
+        transform: scale(0.2);
+        background: currentColor;
+        border-radius: 50%;
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .cb-cursor.-visible::before {
+        transform: scale(0.4);
+      }
+
+      .cb-cursor.-visible.-active::before {
+        transform: scale(0.3);
+      }
+
+      .cb-cursor.-visible.-pointer::before {
+        transform: scale(0.15);
+      }
+
+      .cb-cursor.-text::before {
+        opacity: 0.85;
+        transform: scale(1.7);
+        backdrop-filter: blur(2px);
+      }
+
+      .cb-cursor.-text.-active::before {
+        transform: scale(1.6);
+      }
+
+      .cb-cursor.-text.-pointer::before {
+        transform: scale(1.4);
+      }
+
+      .cb-cursor.-hidden::before {
+        transform: scale(0);
+      }
+
+      .cb-cursor.-text .cb-cursor-text {
+        opacity: 1;
+      }
+
+      .cb-cursor .cb-cursor-text {
+        position: absolute;
+        top: -50px;
+        left: -50px;
+        width: 100px;
+        height: 100px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transform: scale(0.8);
+        opacity: 0;
+        color: #fff;
+        font-family: 'Orbitron', sans-serif;
+        font-size: 14px;
+        text-align: center;
+        transition: opacity 0.4s;
+        text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+      }
+
+      /* UATM Custom Cursor States */
+      .cb-cursor.-explore {
+        color: #4CAF50;
+        filter: drop-shadow(0 0 10px rgba(76, 175, 80, 0.5));
+      }
+
+      .cb-cursor.-analyze {
+        color: #2196F3;
+        filter: drop-shadow(0 0 10px rgba(33, 150, 243, 0.5));
+      }
+
+      .cb-cursor.-impact {
+        color: #E91E63;
+        filter: drop-shadow(0 0 10px rgba(233, 30, 99, 0.5));
+      }
+
+      .cb-cursor.-solution {
+        color: #FFC107;
+        filter: drop-shadow(0 0 10px rgba(255, 193, 7, 0.5));
+      }
+
+      /* Hide default cursor */
+      [data-cursor-pointer],
+      [data-cursor-text],
+      [data-cursor-stick],
+      [data-uatm-explore],
+      [data-uatm-analyze],
+      [data-uatm-impact],
+      [data-uatm-solution],
+      .clickable,
+      a,
+      button {
+        cursor: none !important;
+      }
+
+      /* Custom cursor animations */
+      @keyframes cursorPulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.2); }
+        100% { transform: scale(1); }
+      }
+
+      .cb-cursor.-pulse::before {
+        animation: cursorPulse 1s infinite;
+      }
+    </style>
+  </head>
+  <body class="bg-black text-white cursor-none">
+    <!-- Custom Cursor -->
+    <div class="cb-cursor">
+      <div class="cb-cursor-circle"></div>
+      <div class="cb-cursor-text"></div>
+    </div>
+
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html> 
