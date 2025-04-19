@@ -1467,53 +1467,60 @@ const Map3D: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <div style={{ 
-        position: 'relative', 
-        width: '100%', 
-        height: '100vh',
-        backgroundColor: '#87CEEB' // Sky blue background for the container
-      }}>
-        {/* Speed Control */}
-        <div style={{
-          position: 'absolute',
-          top: 20,
-          right: 20,
-          zIndex: 1000,
-          background: 'rgba(0, 0, 0, 0.7)',
-          padding: '10px',
-          borderRadius: '5px',
-          color: 'white'
-        }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Simulation Speed: {simulationSpeed}x</label>
-          <input
-            type="range"
-            min="0.1"
-            max="5"
-            step="0.1"
-            value={simulationSpeed}
-            onChange={handleSpeedChange}
-            style={{ width: '200px' }}
-          />
-        </div>
+      <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
+        {/* Speed Control - Moved to left side */}
         <div style={{
           position: 'absolute',
           top: 20,
           left: 20,
           zIndex: 1000,
           background: 'rgba(0, 0, 0, 0.7)',
-          padding: '10px',
-          borderRadius: '5px',
-          color: 'white'
+          padding: '15px',
+          borderRadius: '8px',
+          color: 'white',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          minWidth: '200px'
         }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Follow Drone:</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ minWidth: '80px' }}>Speed:</span>
+            <input
+              type="range"
+              min="0.1"
+              max="5"
+              step="0.1"
+              value={simulationSpeed}
+              onChange={handleSpeedChange}
+              style={{ flex: 1 }}
+            />
+            <span style={{ minWidth: '40px', textAlign: 'right' }}>{simulationSpeed}x</span>
+          </div>
+        </div>
+
+        {/* Drone Selection - Moved below speed control */}
+        <div style={{
+          position: 'absolute',
+          top: 100,
+          left: 20,
+          zIndex: 1000,
+          background: 'rgba(0, 0, 0, 0.7)',
+          padding: '15px',
+          borderRadius: '8px',
+          color: 'white',
+          minWidth: '200px'
+        }}>
+          <label style={{ display: 'block', marginBottom: '10px' }}>Follow Drone:</label>
           <select 
             value={selectedDroneId ?? ''}
             onChange={(e) => setSelectedDroneId(e.target.value ? Number(e.target.value) : null)}
             style={{
-              padding: '5px',
-              borderRadius: '3px',
+              width: '100%',
+              padding: '8px',
+              borderRadius: '4px',
               background: 'white',
-              color: 'black'
+              color: 'black',
+              border: 'none'
             }}
           >
             <option value="">Auto (Follow First Active)</option>
@@ -1524,10 +1531,8 @@ const Map3D: React.FC = () => {
             ))}
           </select>
         </div>
-        <Canvas
-          style={{ background: '#87CEEB' }}
-          camera={{ position: [0, 50, 100], fov: 60 }}
-        >
+
+        <Canvas>
           <SceneContent 
             drones={drones} 
             pickupPoints={pickupPoints} 
@@ -1537,25 +1542,31 @@ const Map3D: React.FC = () => {
             onPointAdd={handlePointAdd}
           />
         </Canvas>
+
         <DroneInfoSidebar 
           drones={drones}
           selectedDroneId={selectedDroneId}
           onDroneSelect={handleDroneSelect}
           droneStates={droneStates}
         />
+
+        {/* Start/Stop Button - Centered at bottom */}
         <div style={{
           position: 'absolute',
           bottom: 20,
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 1000,
-          display: 'flex',
-          gap: '10px'
         }}>
           <Button
             variant="contained"
             color={isSimulationRunning ? 'secondary' : 'primary'}
             onClick={isSimulationRunning ? stopSimulation : startSimulation}
+            style={{
+              padding: '10px 30px',
+              fontSize: '1.1em',
+              borderRadius: '8px'
+            }}
           >
             {isSimulationRunning ? 'Stop Simulation' : 'Start Simulation'}
           </Button>
