@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
-import MagicCursor from './js/magiccursor.ts';
+import Cursor from './components/Cursor';
 import Hero from './components/Hero';
 import ProblemStatement from './components/sections/ProblemStatement';
 import Solutions from './components/sections/Solutions';
@@ -58,39 +58,13 @@ const MainContent = () => {
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const cursorRef = useRef<MagicCursor | null>(null);
-  const cursorInitialized = useRef(false);
 
   useEffect(() => {
-    let timer: number;
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1500);
 
-    const initCursor = () => {
-      if (!cursorInitialized.current) {
-        cursorRef.current = new MagicCursor();
-        
-        timer = window.setTimeout(() => {
-          if (cursorRef.current) {
-            try {
-              cursorRef.current.init();
-              cursorInitialized.current = true;
-            } catch (error) {
-              console.error('Error initializing cursor:', error);
-            }
-          }
-          setIsLoading(false);
-        }, 100);
-      }
-    };
-
-    const initTimer = window.setTimeout(initCursor, 500);
-
-    return () => {
-      clearTimeout(timer);
-      clearTimeout(initTimer);
-      if (cursorRef.current) {
-        cursorRef.current.destroy();
-      }
-    };
+    return () => clearTimeout(timer);
   }, []);
 
   if (isLoading) {
@@ -100,11 +74,8 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen bg-black text-white">
-        <div className="cb-cursor z-[100]">
-          <div className="cb-cursor-circle"></div>
-          <div className="cb-cursor-text"></div>
-        </div>
-
+        <Cursor />
+        
         <Routes>
           <Route path="/" element={<MainContent />} />
 
