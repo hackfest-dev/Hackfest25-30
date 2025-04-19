@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Sky Background -->
+  <rect width="1920" height="1080" fill="url(#sky_gradient)"/>
+  
+  <!-- City Silhouette -->
+  <path d="M0 1080V800C160 750 320 780 480 820C640 860 800 880 960 870C1120 860 1280 820 1440 800C1600 780 1760 790 1920 830V1080H0Z" fill="url(#city_gradient)" opacity="0.3"/>
+  
+  <!-- Drones -->
+  <g opacity="0.6">
+    <!-- Drone 1 -->
+    <path d="M500 400L580 440L500 480L420 440L500 400Z" fill="white"/>
+    <circle cx="500" cy="440" r="10" fill="white"/>
+    
+    <!-- Drone 2 -->
+    <path d="M1200 300L1280 340L1200 380L1120 340L1200 300Z" fill="white"/>
+    <circle cx="1200" cy="340" r="10" fill="white"/>
+    
+    <!-- Drone 3 -->
+    <path d="M800 600L880 640L800 680L720 640L800 600Z" fill="white"/>
+    <circle cx="800" cy="640" r="10" fill="white"/>
+  </g>
+
+  <!-- Gradients -->
+  <defs>
+    <linearGradient id="sky_gradient" x1="960" y1="0" x2="960" y2="1080" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1a1a2e"/>
+      <stop offset="1" stop-color="#16213e"/>
+    </linearGradient>
+    
+    <linearGradient id="city_gradient" x1="960" y1="750" x2="960" y2="1080" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f3460"/>
+      <stop offset="1" stop-color="#16213e"/>
+    </linearGradient>
+  </defs>
+</svg> 

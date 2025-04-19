@@ -13,22 +13,22 @@ const ProblemStatement: React.FC = () => {
             <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
               The Challenge:
               <span className="block mt-2 bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-                Urban Air Congestion
+                Urban Air Traffic Management
               </span>
             </h2>
             
             <div className="space-y-6 text-lg text-white/80">
               <p>
-                India's urban airspace faces unprecedented challenges with the rise of commercial drones and aerial vehicles. Current systems lack:
+                India's Urban Air Mobility (UAM) sector faces critical challenges in managing air traffic, preventing collisions, and ensuring security. While metro cities grapple with severe road congestion, the current DGCA policies lack:
               </p>
               
               <ul className="space-y-4">
                 {[
-                  'AI-driven traffic management solutions',
-                  'Real-time monitoring capabilities',
-                  'Automated collision prevention systems',
-                  'Integrated weather adaptation protocols',
-                  'Standardized air corridor management'
+                  'Real-time AI-based traffic control systems',
+                  'Comprehensive collision prevention mechanisms',
+                  'Integrated security protocols for UAM operations',
+                  'Standardized air traffic management frameworks',
+                  'Dynamic route optimization capabilities'
                 ].map((item, index) => (
                   <li key={index} className="flex items-start space-x-3">
                     <span className="text-primary mt-1">⚠️</span>
@@ -38,7 +38,7 @@ const ProblemStatement: React.FC = () => {
               </ul>
               
               <p className="text-xl font-semibold text-white/90 mt-8">
-                Without intervention, urban air congestion could lead to safety risks, inefficient operations, and missed economic opportunities.
+                These gaps in the current system create significant safety risks and regulatory challenges, hindering the potential of UAM to alleviate urban congestion.
               </p>
             </div>
           </div>
@@ -48,24 +48,24 @@ const ProblemStatement: React.FC = () => {
             <div className="space-y-8">
               <div className="text-center p-6 rounded-xl bg-white/5 backdrop-blur-sm">
                 <div className="text-5xl font-bold text-primary mb-2 animate-pulse-slow">
-                  300%
+                  500%
                 </div>
-                <p className="text-white/70">Projected increase in urban aerial traffic by 2025</p>
+                <p className="text-white/70">Expected growth in UAM operations by 2025</p>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-sm">
                   <div className="text-3xl font-bold text-accent mb-2">
-                    ₹12,000 Cr
+                    ₹15,000 Cr
                   </div>
-                  <p className="text-sm text-white/70">Annual economic impact</p>
+                  <p className="text-sm text-white/70">Potential economic impact</p>
                 </div>
                 
                 <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-sm">
                   <div className="text-3xl font-bold text-secondary mb-2">
-                    45%
+                    60%
                   </div>
-                  <p className="text-sm text-white/70">Current inefficiency rate</p>
+                  <p className="text-sm text-white/70">Current traffic management inefficiency</p>
                 </div>
               </div>
             </div>

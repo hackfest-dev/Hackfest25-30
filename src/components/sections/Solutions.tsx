@@ -1,105 +1,76 @@
 import React from 'react';
-
-interface SolutionFeature {
-  title: string;
-  description: string;
-  icon: string;
-  image: string;
-}
+import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import AnimatedCard from '../AnimatedCard';
+import AnimatedButton from '../AnimatedButton';
 
 const Solutions: React.FC = () => {
-  const features: SolutionFeature[] = [
+  const navigate = useNavigate();
+
+  const features = [
     {
-      title: 'Dynamic Routing',
-      description: 'AI-powered route optimization that adapts in real-time to traffic conditions, weather patterns, and emergency situations.',
-      icon: '🛣️',
-      image: '/images/dynamic-routing.jpg' // Placeholder path
+      title: "AI-Powered Traffic Prediction",
+      description: "Advanced machine learning algorithms predict and optimize air traffic flow in real-time",
+      icon: "🚀",
+      link: "/features/ai-traffic-prediction"
     },
     {
-      title: 'Live Monitoring System',
-      description: 'Real-time surveillance and tracking of all aerial vehicles with predictive collision detection and automated risk assessment.',
-      icon: '📡',
-      image: '/images/live-monitoring.jpg'
+      title: "Dynamic Route Optimization",
+      description: "Intelligent routing system that adapts to changing conditions and traffic patterns",
+      icon: "🛣️",
+      link: "/features/dynamic-route-optimization"
     },
     {
-      title: 'Air Traffic Police',
-      description: 'Dedicated aerial law enforcement system with automated violation detection and emergency response protocols.',
-      icon: '👮',
-      image: '/images/air-police.jpg'
-    },
-    {
-      title: 'Geofencing',
-      description: 'Dynamic virtual boundaries that automatically regulate drone access to restricted airspace and sensitive areas.',
-      icon: '🔒',
-      image: '/images/geofencing.jpg'
-    },
-    {
-      title: 'Charging Ports',
-      description: 'Strategic network of automated charging stations optimized for maximum coverage and minimal downtime.',
-      icon: '🔋',
-      image: '/images/charging-ports.jpg'
-    },
-    {
-      title: 'Optimized Delivery',
-      description: 'Cost-effective delivery solutions with smart load balancing and multi-drone coordination for maximum efficiency.',
-      icon: '📦',
-      image: '/images/delivery.jpg'
+      title: "Real-time Monitoring",
+      description: "Comprehensive dashboard for monitoring and managing urban air traffic",
+      icon: "📊",
+      link: "/features/real-time-monitoring"
     }
   ];
 
   return (
-    <section className="py-20 bg-black">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16 animate-fade-in-up">
-          <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
-            Our Solutions & Features
+    <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-6">
+            <span className="bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+              Our Solutions
+            </span>
           </h2>
-          <p className="mt-4 text-xl text-white/80">
-            Comprehensive solutions for next-generation urban air mobility
+          <p className="text-xl text-white/80 max-w-3xl mx-auto">
+            Cutting-edge technologies for efficient and safe urban air traffic management
           </p>
-        </div>
+        </motion.div>
 
-        <div className="space-y-24">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {features.map((feature, index) => (
-            <div
-              key={feature.title}
-              className={`flex flex-col ${
-                index % 2 === 0 ? 'lg:flex-row' : 'lg:flex-row-reverse'
-              } gap-12 items-center animate-fade-in-up`}
-              style={{ animationDelay: `${index * 100}ms` }}
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: index * 0.1 }}
             >
-              {/* Image Section */}
-              <div className="w-full lg:w-1/2">
-                <div className="relative aspect-video rounded-2xl overflow-hidden bg-black/50 border border-white/10">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-secondary/20" />
-                  <div className="absolute inset-0 flex items-center justify-center text-6xl">
-                    {feature.icon}
-                  </div>
+              <AnimatedCard className="h-full p-6">
+                <div className="flex flex-col h-full">
+                  <div className="text-4xl mb-4">{feature.icon}</div>
+                  <h3 className="text-xl font-bold text-white mb-3">{feature.title}</h3>
+                  <p className="text-white/80 mb-6 flex-grow">{feature.description}</p>
+                  <AnimatedButton
+                    className="bg-white/10 hover:bg-white/20 text-white"
+                    onClick={() => navigate(feature.link)}
+                  >
+                    Learn More
+                  </AnimatedButton>
                 </div>
-              </div>
-
-              {/* Content Section */}
-              <div className="w-full lg:w-1/2 space-y-6">
-                <div className="inline-block rounded-full bg-white/5 px-3 py-1 text-sm text-white/70">
-                  Feature {index + 1}
-                </div>
-                
-                <h3 className="text-3xl font-bold text-white">
-                  {feature.title}
-                </h3>
-                
-                <p className="text-lg text-white/80 leading-relaxed">
-                  {feature.description}
-                </p>
-                
-                <div className="pt-4">
-                  <button className="inline-flex items-center space-x-2 text-primary hover:text-primary-light transition-colors">
-                    <span>Learn more</span>
-                    <span>→</span>
-                  </button>
-                </div>
-              </div>
-            </div>
+              </AnimatedCard>
+            </motion.div>
           ))}
         </div>
       </div>

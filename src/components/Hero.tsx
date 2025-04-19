@@ -1,44 +1,139 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import AnimatedButton from './AnimatedButton';
+import HeroBackground from './HeroBackground';
 
 const Hero: React.FC = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; opacity: number }>>([]);
+
+  // Parallax effect values
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const smoothMouseX = useSpring(mouseX, { stiffness: 100, damping: 20 });
+  const smoothMouseY = useSpring(mouseY, { stiffness: 100, damping: 20 });
+
+  // Transform values for parallax
+  const backgroundX = useTransform(smoothMouseX, [-500, 500], [-20, 20]);
+  const backgroundY = useTransform(smoothMouseY, [-500, 500], [-20, 20]);
+  const textX = useTransform(smoothMouseX, [-500, 500], [-10, 10]);
+  const textY = useTransform(smoothMouseY, [-500, 500], [-10, 10]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+      
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      setMousePosition({ x, y });
+      mouseX.set(x - rect.width / 2);
+      mouseY.set(y - rect.height / 2);
+
+      // Add particle
+      const newParticle = {
+        id: Date.now(),
+        x: e.clientX,
+        y: e.clientY,
+        opacity: 1
+      };
+      setParticles(prev => [...prev, newParticle]);
+
+      // Remove particle after animation
+      setTimeout(() => {
+        setParticles(prev => prev.filter(p => p.id !== newParticle.id));
+      }, 1000);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
   return (
-    <div className="relative min-h-[100vh] bg-black overflow-hidden font-sans">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiA0MmMwIDMuMzEzLTIuNjg3IDYtNiA2cy02LTIuNjg3LTYtNiAyLjY4Ny02IDYtNiA2IDIuNjg3IDYgNnoiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iLjA1Ii8+PC9nPjwvc3ZnPg==')] opacity-10 animate-pulse" />
-      
-      {/* Animated gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-accent/5 to-secondary/5 animate-gradient" />
-      
-      {/* Content */}
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32 flex items-center justify-center min-h-[100vh]">
-        <div className="text-center">
-          <h1 className="text-6xl md:text-8xl font-extrabold mb-6 text-white tracking-tight animate-fade-in-up">
-            Urban Air Traffic
-            <span className="block mt-2 md:mt-3">Management</span>
-            <span className="block text-3xl md:text-4xl font-medium mt-6 text-primary-light animate-fade-in-up-delay tracking-normal">
-              (UATM)
-            </span>
-          </h1>
-          
-          <p className="text-lg md:text-xl mb-10 text-white/80 max-w-3xl mx-auto leading-relaxed animate-fade-in-up-delay-2">
-            Revolutionizing urban logistics through aerial intelligence.
-          </p>
-          
-          <div className="inline-block animate-fade-in-up-delay-3">
-            <div className="bg-white/5 backdrop-blur-lg rounded-xl py-3 px-6 shadow-2xl border border-white/10 transform hover:scale-105 transition-all duration-300 hover:border-primary-light/50">
-              <p className="text-base text-white font-medium tracking-wide">
-                Turbo Astronauts – Hackfest 2025
-              </p>
-            </div>
-          </div>
-          
-          {/* Animated decorative elements (position adjusted slightly) */}
-          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/5 rounded-full blur-3xl animate-float-slow" />
-          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-secondary/5 rounded-full blur-3xl animate-float-slow-reverse" />
-          <div className="absolute top-3/4 left-1/3 w-48 h-48 bg-accent/5 rounded-full blur-3xl animate-float-medium" />
-        </div>
+    <section 
+      ref={containerRef}
+      className="relative min-h-screen flex items-center justify-center overflow-hidden bg-black"
+    >
+      {/* Background */}
+      <HeroBackground backgroundX={backgroundX} backgroundY={backgroundY} />
+
+      {/* Grid overlay */}
+      <div className="absolute inset-0 opacity-10">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiA4aDEydjEySDM2Vjh6bTAgMTZoMTJ2MTJIMzZWMjR6bS0xNiAwaDEydjEySDIwVjI0em0wLTE2aDEydjEySDIwVjh6IiBzdHJva2U9IiNGRkYiIHN0cm9rZS13aWR0aD0iMiIvPjwvZz48L3N2Zz4=')]" />
       </div>
-    </div>
+
+      {/* Cursor particles */}
+      {particles.map(particle => (
+        <motion.div
+          key={particle.id}
+          className="absolute w-2 h-2 bg-primary rounded-full"
+          initial={{ 
+            x: particle.x, 
+            y: particle.y,
+            opacity: 1,
+            scale: 1
+          }}
+          animate={{ 
+            opacity: 0,
+            scale: 0,
+            x: particle.x + (Math.random() - 0.5) * 100,
+            y: particle.y + (Math.random() - 0.5) * 100
+          }}
+          transition={{ duration: 1, ease: "easeOut" }}
+        />
+      ))}
+
+      {/* Content with parallax effect */}
+      <motion.div
+        className="relative z-10 text-center px-4 sm:px-6 lg:px-8"
+        style={{
+          x: textX,
+          y: textY,
+        }}
+      >
+        <motion.h1
+          className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6"
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+        >
+          <span className="block bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+            Urban Air Traffic
+          </span>
+          <span className="block mt-2 text-white">
+            Management System
+          </span>
+        </motion.h1>
+
+        <motion.p
+          className="text-lg sm:text-xl text-white/80 max-w-2xl mx-auto mb-8"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+        >
+          Revolutionizing urban airspace management with AI-driven solutions for safer, 
+          more efficient aerial transportation.
+        </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
+        >
+          <AnimatedButton
+            className="bg-primary hover:bg-primary/90 text-white"
+            onClick={() => window.scrollTo({ top: window.innerHeight, behavior: 'smooth' })}
+          >
+            Explore Solutions
+          </AnimatedButton>
+        </motion.div>
+      </motion.div>
+
+      {/* Bottom Gradient */}
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent" />
+    </section>
   );
 };
 
