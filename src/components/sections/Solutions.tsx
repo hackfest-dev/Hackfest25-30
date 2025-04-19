@@ -74,20 +74,28 @@ const Solutions: React.FC = () => {
           ))}
         </div>
 
-        {/* Request Demo Button */}
+        {/* Request Demo Buttons */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="text-center mt-16"
+          className="text-center mt-16 space-y-4"
         >
-          <AnimatedButton
-            className="bg-primary hover:bg-primary/90 text-white"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          >
-            Request Demo
-          </AnimatedButton>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <AnimatedButton
+              className="bg-primary hover:bg-primary/90 text-white"
+              onClick={() => window.open('http://192.168.42.79:8000/fleet', '_blank')}
+            >
+              2D Monitoring Demo
+            </AnimatedButton>
+            <AnimatedButton
+              className="bg-accent hover:bg-accent/90 text-white"
+              onClick={() => window.open('http://192.168.42.20:5173/', '_blank')}
+            >
+              3D Monitoring Demo
+            </AnimatedButton>
+          </div>
         </motion.div>
       </div>
     </section>

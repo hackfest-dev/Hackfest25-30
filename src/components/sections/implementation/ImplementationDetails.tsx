@@ -8,10 +8,10 @@ const ImplementationDetails: React.FC = () => {
   const navigate = useNavigate();
 
   const performanceMetrics = [
-    { value: '95%', label: 'Delivery Speed Improvement', color: 'text-primary', subtext: 'Faster than traditional methods' },
-    { value: '70%', label: 'Cost Reduction', color: 'text-accent', subtext: 'Lower operational costs' },
-    { value: '99.9%', label: 'Delivery Success Rate', color: 'text-secondary', subtext: 'Reliable operations' },
-    { value: '85%', label: 'Operation Coverage', color: 'text-primary', subtext: 'Wide area coverage' }
+    { value: '95', label: 'Delivery Speed Improvement', color: 'text-primary', subtext: 'Faster than traditional methods' },
+    { value: '70', label: 'Cost Reduction', color: 'text-accent', subtext: 'Lower operational costs' },
+    { value: '99.9', label: 'Delivery Success Rate', color: 'text-secondary', subtext: 'Reliable operations' },
+    { value: '85', label: 'Operation Coverage', color: 'text-primary', subtext: 'Wide area coverage' }
   ];
 
   const partnerships = [
