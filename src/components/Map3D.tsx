@@ -46,7 +46,7 @@ class Drone {
   maxBattery: number;
   state: 'idle' | 'takingOff' | 'movingToPickup' | 'descendingToPickup' | 'pickingUp' | 
          'ascendingFromPickup' | 'movingToDelivery' | 'descendingToDelivery' | 'dropping' | 
-         'ascendingFromDelivery' | 'returningToBase' | 'descendingToBase';
+         'ascendingFromDelivery' | 'returningToBase' | 'descendingToBase' | 'movingToRecharge' | 'recharging';
   currentAltitude: number;
   cruisingAltitude: number;
   landingAltitude: number;
@@ -72,6 +72,15 @@ class Drone {
   collisionsAvoided: number;
   lastPosition: THREE.Vector3;
   collisionDetails: Array<{ timestamp: number; otherDroneId: number; distance: number }>;
+  // Add restricted zone properties
+  private RESTRICTED_ZONE_POSITION: THREE.Vector3;
+  private RESTRICTED_ZONE_RADIUS: number;
+  private RESTRICTED_ZONE_SAFETY_MARGIN: number;
+  public readonly RECHARGING_POINTS: THREE.Vector3[];
+  private readonly LOW_BATTERY_THRESHOLD = 20;
+  private readonly CHARGING_RATE = 2;
+  private isCharging: boolean;
+  private targetRechargePoint: THREE.Vector3 | null;
 
   constructor(position: THREE.Vector3, id: number) {
     this.id = id;
@@ -180,13 +189,76 @@ class Drone {
     // Set initial position
     this.mesh.position.copy(position);
     this.mesh.position.y = this.currentAltitude;
+
+    // Initialize restricted zone properties
+    this.RESTRICTED_ZONE_POSITION = new THREE.Vector3(150, 0, 150);
+    this.RESTRICTED_ZONE_RADIUS = 30;
+    this.RESTRICTED_ZONE_SAFETY_MARGIN = 10;
+
+    // Initialize recharging points
+    this.RECHARGING_POINTS = [
+      new THREE.Vector3(-100, 0, -100),  // Southwest
+      new THREE.Vector3(-100, 0, 100),   // Northwest
+      new THREE.Vector3(100, 0, -100),   // Southeast
+      new THREE.Vector3(100, 0, 100)     // Northeast
+    ];
+    
+    this.isCharging = false;
+    this.targetRechargePoint = null;
+  }
+
+  // Add method to check if a point is in restricted zone
+  isInRestrictedZone(position: THREE.Vector3): boolean {
+    const dx = position.x - this.RESTRICTED_ZONE_POSITION.x;
+    const dz = position.z - this.RESTRICTED_ZONE_POSITION.z;
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    return distance < (this.RESTRICTED_ZONE_RADIUS + this.RESTRICTED_ZONE_SAFETY_MARGIN);
+  }
+
+  // Add method to find path around restricted zone
+  findPathAroundRestrictedZone(start: THREE.Vector3, end: THREE.Vector3): THREE.Vector3[] {
+    const path: THREE.Vector3[] = [];
+    const center = this.RESTRICTED_ZONE_POSITION;
+    const radius = this.RESTRICTED_ZONE_RADIUS + this.RESTRICTED_ZONE_SAFETY_MARGIN;
+
+    // Calculate angles from center to start and end points
+    const startAngle = Math.atan2(start.z - center.z, start.x - center.x);
+    const endAngle = Math.atan2(end.z - center.z, end.x - center.x);
+
+    // Determine the direction to go around (clockwise or counterclockwise)
+    let angleDiff = endAngle - startAngle;
+    if (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+    if (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+    // Calculate the number of waypoints based on the distance
+    const distance = start.distanceTo(end);
+    const numWaypoints = Math.max(3, Math.floor(distance / 20)); // One waypoint every 20 units
+    const angleStep = angleDiff / numWaypoints;
+
+    // Generate waypoints around the restricted zone
+    for (let i = 0; i <= numWaypoints; i++) {
+      const currentAngle = startAngle + (angleStep * i);
+      const x = center.x + Math.cos(currentAngle) * radius;
+      const z = center.z + Math.sin(currentAngle) * radius;
+      path.push(new THREE.Vector3(x, this.cruisingAltitude, z));
+    }
+
+    return path;
   }
 
   update(drones: Drone[]) {
     if (this.state === 'idle') return;
 
-    // Update battery
-    this.battery = Math.max(0, this.battery - this.energyConsumption * 0.5);
+    // Check battery level and handle recharging
+    if (this.battery <= this.LOW_BATTERY_THRESHOLD && !this.isCharging) {
+      this.targetRechargePoint = this.findNearestRechargePoint();
+      this.state = 'movingToRecharge';
+    }
+
+    // Update battery (except when charging)
+    if (!this.isCharging) {
+      this.battery = Math.max(0, this.battery - this.energyConsumption * 0.5);
+    }
 
     // Check for collisions first
     const collidingDrone = this.checkForCollisions(drones);
@@ -196,9 +268,6 @@ class Drone {
         this.currentRerouteIndex = 0;
       }
     }
-
-    // Basic logging
-    console.log(`Drone ${this.id}: ${this.state} at (${this.mesh.position.x.toFixed(1)}, ${this.mesh.position.y.toFixed(1)}, ${this.mesh.position.z.toFixed(1)})`);
 
     // Handle rerouting if needed
     if (this.reroutePoints.length > 0 && this.currentRerouteIndex < this.reroutePoints.length) {
@@ -240,6 +309,15 @@ class Drone {
 
       case 'movingToPickup':
         if (this.pickupPoint) {
+          // Check if direct path to pickup point goes through restricted zone
+          if (this.isInRestrictedZone(this.mesh.position) || this.isInRestrictedZone(this.pickupPoint)) {
+            if (this.reroutePoints.length === 0) {
+              this.reroutePoints = this.findPathAroundRestrictedZone(this.mesh.position, this.pickupPoint);
+              this.currentRerouteIndex = 0;
+            }
+            return;
+          }
+
           const dx = this.pickupPoint.x - this.mesh.position.x;
           const dz = this.pickupPoint.z - this.mesh.position.z;
           const distance = Math.sqrt(dx * dx + dz * dz);
@@ -284,6 +362,15 @@ class Drone {
 
       case 'movingToDelivery':
         if (this.deliveryPoint) {
+          // Check if direct path to delivery point goes through restricted zone
+          if (this.isInRestrictedZone(this.mesh.position) || this.isInRestrictedZone(this.deliveryPoint)) {
+            if (this.reroutePoints.length === 0) {
+              this.reroutePoints = this.findPathAroundRestrictedZone(this.mesh.position, this.deliveryPoint);
+              this.currentRerouteIndex = 0;
+            }
+            return;
+          }
+
           const dx = this.deliveryPoint.x - this.mesh.position.x;
           const dz = this.deliveryPoint.z - this.mesh.position.z;
           const distance = Math.sqrt(dx * dx + dz * dz);
@@ -355,6 +442,43 @@ class Drone {
           this.battery = this.maxBattery;
         }
         break;
+
+      case 'movingToRecharge':
+        if (this.targetRechargePoint) {
+          const dx = this.targetRechargePoint.x - this.mesh.position.x;
+          const dz = this.targetRechargePoint.z - this.mesh.position.z;
+          const distance = Math.sqrt(dx * dx + dz * dz);
+
+          if (distance < 0.1) {
+            this.mesh.position.x = this.targetRechargePoint.x;
+            this.mesh.position.z = this.targetRechargePoint.z;
+            this.state = 'recharging';
+            this.isCharging = true;
+          } else {
+            const moveX = (dx / distance) * Math.min(this.speed, distance);
+            const moveZ = (dz / distance) * Math.min(this.speed, distance);
+            
+            this.mesh.position.x += moveX;
+            this.mesh.position.z += moveZ;
+            this.mesh.position.y = this.currentAltitude;
+            this.mesh.lookAt(this.targetRechargePoint);
+          }
+        }
+        break;
+
+      case 'recharging':
+        if (this.battery < this.maxBattery) {
+          this.battery = Math.min(this.maxBattery, this.battery + this.CHARGING_RATE);
+        } else {
+          this.isCharging = false;
+          // Resume previous task or return to base
+          if (this.deliveryPoint) {
+            this.state = 'movingToDelivery';
+          } else {
+            this.state = 'returningToBase';
+          }
+        }
+        break;
     }
 
     // Update visual indicators
@@ -373,7 +497,8 @@ class Drone {
       context.font = '12px Arial';
       context.fillStyle = 'white';
       context.textAlign = 'center';
-      context.fillText(this.state.toUpperCase(), canvas.width / 2, canvas.height / 2);
+      const status = this.isCharging ? 'CHARGING' : this.state.toUpperCase();
+      context.fillText(status, canvas.width / 2, canvas.height / 2);
     }
     const texture = new THREE.CanvasTexture(canvas);
     (this.statusText.material as THREE.MeshBasicMaterial).map = texture;
@@ -381,6 +506,10 @@ class Drone {
   }
 
   updateColor() {
+    if (this.isCharging) {
+      this.bodyMaterial.color.set(0xffff00); // Yellow for charging
+      return;
+    }
     switch (this.state) {
       case 'idle':
         this.bodyMaterial.color.set(0x00ff00); // Green
@@ -554,6 +683,22 @@ class Drone {
         return this.mesh.position;
     }
   }
+
+  // Add method to find nearest recharging point
+  findNearestRechargePoint(): THREE.Vector3 {
+    let nearestPoint = this.RECHARGING_POINTS[0];
+    let minDistance = this.mesh.position.distanceTo(nearestPoint);
+    
+    for (let i = 1; i < this.RECHARGING_POINTS.length; i++) {
+      const distance = this.mesh.position.distanceTo(this.RECHARGING_POINTS[i]);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestPoint = this.RECHARGING_POINTS[i];
+      }
+    }
+    
+    return nearestPoint;
+  }
 }
 
 const SceneContent: React.FC<{ 
@@ -561,8 +706,10 @@ const SceneContent: React.FC<{
   pickupPoints: THREE.Vector3[]; 
   deliveryPoints: THREE.Vector3[];
   selectedDroneId: number | null;
-}> = ({ drones, pickupPoints, deliveryPoints, selectedDroneId }) => {
-  const { camera } = useThree();
+  onDroneSelect: (id: number) => void;
+  onPointAdd: (position: THREE.Vector3, isPickup: boolean) => void;
+}> = ({ drones, pickupPoints, deliveryPoints, selectedDroneId, onDroneSelect, onPointAdd }) => {
+  const { camera, scene } = useThree();
   const buildingsRef = useRef<THREE.Group>(new THREE.Group());
   const roadsRef = useRef<THREE.Group>(new THREE.Group());
   const controlsRef = useRef<any>(null);
@@ -571,6 +718,70 @@ const SceneContent: React.FC<{
   const lastDronePositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const cameraTargetRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const cameraPositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+
+  // Add skybox
+  useEffect(() => {
+    scene.background = new THREE.Color(0x87CEEB); // Sky blue color
+    scene.fog = new THREE.Fog(0x87CEEB, 100, 500); // Add fog for depth effect
+
+    return () => {
+      scene.background = null;
+      scene.fog = null;
+    };
+  }, [scene]);
+
+  // Handle click events
+  const handleClick = (event: any) => {
+    // Calculate mouse position in normalized device coordinates
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    // Update the picking ray with the camera and mouse position
+    raycaster.setFromCamera(mouse, camera);
+
+    // Check for drone intersections
+    const droneIntersections = raycaster.intersectObjects(
+      drones.map(drone => drone.mesh)
+    );
+
+    if (droneIntersections.length > 0) {
+      const drone = drones.find(d => d.mesh === droneIntersections[0].object.parent);
+      if (drone) {
+        onDroneSelect(drone.id);
+        return;
+      }
+    }
+
+    // Check for ground intersection
+    const groundIntersections = raycaster.intersectObject(
+      new THREE.Mesh(
+        new THREE.PlaneGeometry(500, 500),
+        new THREE.MeshBasicMaterial({ visible: false })
+      )
+    );
+
+    if (groundIntersections.length > 0) {
+      const point = groundIntersections[0].point;
+      // Show dialog to choose point type
+      if (window.confirm('Add new point at this location?')) {
+        const isPickup = window.confirm('Is this a pickup point? (Cancel for delivery point)');
+        onPointAdd(point, isPickup);
+      }
+    }
+  };
+
+  // Add click event listener
+  useEffect(() => {
+    const canvas = document.querySelector('canvas');
+    if (canvas) {
+      canvas.addEventListener('click', handleClick);
+      return () => {
+        canvas.removeEventListener('click', handleClick);
+      };
+    }
+  }, [camera, drones]);
 
   // Enhanced camera settings
   const cameraOffset = new THREE.Vector3(0, 20, 40); // Increased height and distance
@@ -907,8 +1118,18 @@ const SceneContent: React.FC<{
     }
   }, []);
 
+  // Define recharging points outside the drone class
+  const rechargingPoints = [
+    new THREE.Vector3(-100, 0, -100),  // Southwest
+    new THREE.Vector3(-100, 0, 100),   // Northwest
+    new THREE.Vector3(100, 0, -100),   // Southeast
+    new THREE.Vector3(100, 0, 100)     // Northeast
+  ];
+
   return (
     <>
+      <color attach="background" args={[0x87CEEB]} />
+      <fog attach="fog" args={[0x87CEEB, 100, 500]} />
       <ambientLight intensity={0.5} />
       <directionalLight 
         position={[10, 10, 5]} 
@@ -930,10 +1151,62 @@ const SceneContent: React.FC<{
       {/* Roads */}
       <primitive object={roadsRef.current} />
       {/* Center base */}
-      <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[10, 10, 0.2, 32]} />
+      <mesh position={[0, 0.1, 0]}>
+        <boxGeometry args={[20, 0.2, 20]} />
         <meshStandardMaterial color="#00ff00" />
       </mesh>
+      {/* Restricted Zone Geofence */}
+      <group>
+        {/* Main restricted area cylinder */}
+        <mesh position={[150, 25, 150]}>
+          <cylinderGeometry args={[30, 30, 50, 32]} />
+          <meshBasicMaterial 
+            color="#ff0000" 
+            transparent 
+            opacity={0.2}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        
+        {/* Warning ring at the top */}
+        <mesh position={[150, 50, 150]} rotation={[Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[29, 31, 32]} />
+          <meshBasicMaterial 
+            color="#ff0000"
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        
+        {/* Warning text */}
+        <mesh position={[150, 55, 150]} rotation={[Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[40, 10]} />
+          <meshBasicMaterial 
+            color="#ff0000"
+            transparent
+            opacity={0.8}
+            side={THREE.DoubleSide}
+          >
+            <canvasTexture
+              attach="map"
+              image={(() => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 512;
+                canvas.height = 128;
+                const context = canvas.getContext('2d');
+                if (context) {
+                  context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                  context.fillRect(0, 0, canvas.width, canvas.height);
+                  context.font = 'bold 48px Arial';
+                  context.fillStyle = '#ff0000';
+                  context.textAlign = 'center';
+                  context.fillText('RESTRICTED ZONE', canvas.width / 2, canvas.height / 2);
+                }
+                return canvas;
+              })()}
+            />
+          </meshBasicMaterial>
+        </mesh>
+      </group>
       {/* Pickup and Delivery Markers */}
       {pickupPoints.map((point, index) => (
         <mesh key={`pickup-${index}`} position={[point.x, 0.1, point.z]}>
@@ -947,16 +1220,33 @@ const SceneContent: React.FC<{
           <meshStandardMaterial color="#ff0000" transparent opacity={0.7} />
         </mesh>
       ))}
+      {/* Recharging Points */}
+      {rechargingPoints.map((point, index) => (
+        <mesh key={`recharge-${index}`} position={[point.x, 0.1, point.z]}>
+          <cylinderGeometry args={[5, 5, 0.2, 32]} />
+          <meshStandardMaterial color="#ffff00" transparent opacity={0.7} />
+        </mesh>
+      ))}
       {/* Drones */}
       {drones.map(drone => (
         <primitive key={drone.id} object={drone.mesh} />
       ))}
+      {/* Interactive ground plane (invisible) */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <planeGeometry args={[500, 500]} />
+        <meshBasicMaterial visible={false} />
+      </mesh>
     </>
   );
 };
 
-// Add new DroneInfoSidebar component
-const DroneInfoSidebar: React.FC<{ drones: Drone[] }> = ({ drones }) => {
+// Update DroneInfoSidebar component to use droneStates
+const DroneInfoSidebar: React.FC<{ 
+  drones: Drone[]; 
+  selectedDroneId: number | null;
+  onDroneSelect: (id: number) => void;
+  droneStates: { [key: number]: string };
+}> = ({ drones, selectedDroneId, onDroneSelect, droneStates }) => {
   return (
     <div style={{
       position: 'absolute',
@@ -972,18 +1262,26 @@ const DroneInfoSidebar: React.FC<{ drones: Drone[] }> = ({ drones }) => {
     }}>
       <h3 style={{ marginTop: 0, marginBottom: '20px', textAlign: 'center' }}>Drone Information</h3>
       {drones.map(drone => (
-        <div key={drone.id} style={{
-          marginBottom: '15px',
-          padding: '10px',
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          borderRadius: '5px'
-        }}>
+        <div 
+          key={drone.id} 
+          style={{
+            marginBottom: '15px',
+            padding: '10px',
+            backgroundColor: selectedDroneId === drone.id ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+            borderRadius: '5px',
+            cursor: 'pointer'
+          }}
+          onClick={() => onDroneSelect(drone.id)}
+        >
           <h4 style={{ margin: '0 0 10px 0' }}>Drone {drone.id}</h4>
           <div style={{ marginBottom: '5px' }}>
-            <strong>State:</strong> {drone.state}
+            <strong>State:</strong> {droneStates[drone.id] || drone.state}
           </div>
           <div style={{ marginBottom: '5px' }}>
             <strong>Battery:</strong> {Math.round(drone.battery)}%
+          </div>
+          <div style={{ marginBottom: '5px' }}>
+            <strong>Position:</strong> {`(${drone.mesh.position.x.toFixed(1)}, ${drone.mesh.position.y.toFixed(1)}, ${drone.mesh.position.z.toFixed(1)})`}
           </div>
           <div>
             <strong>Collisions Avoided:</strong> {drone.collisionsAvoided}
@@ -1038,6 +1336,25 @@ const Map3D: React.FC = () => {
   const [deliveryPoints, setDeliveryPoints] = useState<THREE.Vector3[]>([]);
   const [isSimulationRunning, setIsSimulationRunning] = useState(false);
   const [selectedDroneId, setSelectedDroneId] = useState<number | null>(null);
+  const [simulationSpeed, setSimulationSpeed] = useState(1);
+  const [droneStates, setDroneStates] = useState<{ [key: number]: string }>({});
+
+  // Update drone states in real-time
+  useEffect(() => {
+    if (isSimulationRunning) {
+      const interval = setInterval(() => {
+        setDroneStates(prevStates => {
+          const newStates = { ...prevStates };
+          drones.forEach(drone => {
+            newStates[drone.id] = drone.state;
+          });
+          return newStates;
+        });
+      }, 100); // Update every 100ms
+
+      return () => clearInterval(interval);
+    }
+  }, [isSimulationRunning, drones]);
 
   // Initialize drones and points
   useEffect(() => {
@@ -1050,19 +1367,46 @@ const Map3D: React.FC = () => {
       for (let i = 0; i < 5; i++) {
         const drone = new Drone(new THREE.Vector3(0, 0, 0), i);
         newDrones.push(drone);
+      }
 
-        // Create pickup and delivery points in a circle
+      // Create 5 pickup points
+      for (let i = 0; i < 5; i++) {
         const angle = (i / 5) * Math.PI * 2;
-        const radius = 100;
+        const radius = 100 + Math.random() * 50; // Random radius between 100 and 150
         
         const pickupX = Math.cos(angle) * radius;
         const pickupZ = Math.sin(angle) * radius;
         const pickupPoint = new THREE.Vector3(pickupX, 0, pickupZ);
         newPickupPoints.push(pickupPoint);
 
-        const deliveryX = Math.cos(angle + Math.PI) * radius;
-        const deliveryZ = Math.sin(angle + Math.PI) * radius;
-        const deliveryPoint = new THREE.Vector3(deliveryX, 0, deliveryZ);
+        // Create delivery points
+        let deliveryPoint: THREE.Vector3;
+        if (i === 2) { // Drone 3 (index 2)
+          // Place delivery point at least 35 units away from restricted zone
+          const restrictedZoneCenter = new THREE.Vector3(150, 0, 150);
+          const deliveryAngle = angle + Math.PI;
+          const minDistance = 35; // Minimum distance from restricted zone
+          
+          // Calculate position that's at least 35 units away from restricted zone
+          let deliveryX, deliveryZ;
+          do {
+            const deliveryRadius = 200 + Math.random() * 100; // Random radius between 200 and 300
+            deliveryX = Math.cos(deliveryAngle) * deliveryRadius;
+            deliveryZ = Math.sin(deliveryAngle) * deliveryRadius;
+          } while (Math.sqrt(
+            Math.pow(deliveryX - restrictedZoneCenter.x, 2) + 
+            Math.pow(deliveryZ - restrictedZoneCenter.z, 2)
+          ) < minDistance);
+
+          deliveryPoint = new THREE.Vector3(deliveryX, 0, deliveryZ);
+        } else {
+          // Other drones' delivery points
+          const deliveryAngle = angle + Math.PI;
+          const deliveryRadius = 200 + Math.random() * 50; // Random radius between 200 and 250
+          const deliveryX = Math.cos(deliveryAngle) * deliveryRadius;
+          const deliveryZ = Math.sin(deliveryAngle) * deliveryRadius;
+          deliveryPoint = new THREE.Vector3(deliveryX, 0, deliveryZ);
+        }
         newDeliveryPoints.push(deliveryPoint);
       }
 
@@ -1102,9 +1446,55 @@ const Map3D: React.FC = () => {
     });
   };
 
+  // Handle drone selection
+  const handleDroneSelect = (id: number) => {
+    setSelectedDroneId(id);
+  };
+
+  // Handle adding new points
+  const handlePointAdd = (position: THREE.Vector3, isPickup: boolean) => {
+    if (isPickup) {
+      setPickupPoints(prev => [...prev, position]);
+    } else {
+      setDeliveryPoints(prev => [...prev, position]);
+    }
+  };
+
+  // Update simulation speed
+  const handleSpeedChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSimulationSpeed(parseFloat(event.target.value));
+  };
+
   return (
     <ErrorBoundary>
-      <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
+      <div style={{ 
+        position: 'relative', 
+        width: '100%', 
+        height: '100vh',
+        backgroundColor: '#87CEEB' // Sky blue background for the container
+      }}>
+        {/* Speed Control */}
+        <div style={{
+          position: 'absolute',
+          top: 20,
+          right: 20,
+          zIndex: 1000,
+          background: 'rgba(0, 0, 0, 0.7)',
+          padding: '10px',
+          borderRadius: '5px',
+          color: 'white'
+        }}>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Simulation Speed: {simulationSpeed}x</label>
+          <input
+            type="range"
+            min="0.1"
+            max="5"
+            step="0.1"
+            value={simulationSpeed}
+            onChange={handleSpeedChange}
+            style={{ width: '200px' }}
+          />
+        </div>
         <div style={{
           position: 'absolute',
           top: 20,
@@ -1134,15 +1524,25 @@ const Map3D: React.FC = () => {
             ))}
           </select>
         </div>
-        <Canvas>
+        <Canvas
+          style={{ background: '#87CEEB' }}
+          camera={{ position: [0, 50, 100], fov: 60 }}
+        >
           <SceneContent 
             drones={drones} 
             pickupPoints={pickupPoints} 
             deliveryPoints={deliveryPoints}
             selectedDroneId={selectedDroneId}
+            onDroneSelect={handleDroneSelect}
+            onPointAdd={handlePointAdd}
           />
         </Canvas>
-        <DroneInfoSidebar drones={drones} />
+        <DroneInfoSidebar 
+          drones={drones}
+          selectedDroneId={selectedDroneId}
+          onDroneSelect={handleDroneSelect}
+          droneStates={droneStates}
+        />
         <div style={{
           position: 'absolute',
           bottom: 20,
