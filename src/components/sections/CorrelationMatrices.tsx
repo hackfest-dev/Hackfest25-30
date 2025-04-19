@@ -5,25 +5,21 @@ import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
+  BarElement,
   Title,
   Tooltip,
   Legend,
-  Filler
 } from 'chart.js';
-import { Line } from 'react-chartjs-2';
+import { Bar } from 'react-chartjs-2';
 
 // Register ChartJS components
 ChartJS.register(
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
+  BarElement,
   Title,
   Tooltip,
-  Legend,
-  Filler
+  Legend
 );
 
 const AnimatedMetric = ({ metric, index }: { metric: any, index: number }) => {
@@ -37,7 +33,6 @@ const AnimatedMetric = ({ metric, index }: { metric: any, index: number }) => {
   useEffect(() => {
     if (inView) {
       controls.start('visible');
-      // Animate the number
       const targetValue = metric.value;
       const duration = 2000;
       const steps = 60;
@@ -82,38 +77,34 @@ const AnimatedMetric = ({ metric, index }: { metric: any, index: number }) => {
           {value}{metric.value.includes('%') ? '%' : ''}
         </div>
         <div className={`flex items-center text-sm font-medium ${metric.positive ? 'text-accent' : 'text-secondary'} font-exo`}>
-          {metric.label === 'Average Flight Deviation' ? '↓' : '↑'} 
+          {metric.label.includes('Reduction') ? '↓' : '↑'} 
           <span className="ml-1">{metric.change}</span>
         </div>
       </div>
-      <p className="text-xs text-white/50 mt-2 font-chakra">Improvement since launch</p>
+      <p className="text-xs text-white/50 mt-2 font-chakra">Improvement with UATM</p>
     </motion.div>
   );
 };
 
-const PerformanceMatrix: React.FC = () => {
+const CorrelationMatrices: React.FC = () => {
   const [chartData, setChartData] = useState({
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+    labels: ['Response Time', 'Accuracy', 'Scalability', 'Cost Efficiency'],
     datasets: [
       {
-        label: 'Managed Flights per Hour',
-        data: [0, 0, 0, 0, 0, 0],
-        borderColor: '#00aaff',
-        backgroundColor: 'rgba(0, 170, 255, 0.1)',
-        fill: true,
-        tension: 0.4,
-        yAxisID: 'y',
+        label: 'Traditional Systems',
+        data: [0, 0, 0, 0],
+        backgroundColor: 'rgba(255, 99, 132, 0.5)',
+        borderColor: 'rgb(255, 99, 132)',
+        borderWidth: 1,
       },
       {
-        label: 'Automated Conflict Alerts Resolved',
-        data: [0, 0, 0, 0, 0, 0],
-        borderColor: '#6cffaf',
-        backgroundColor: 'rgba(108, 255, 175, 0.1)',
-        fill: true,
-        tension: 0.4,
-        yAxisID: 'y1',
-      }
-    ]
+        label: 'UATM Implementation',
+        data: [0, 0, 0, 0],
+        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+        borderColor: 'rgb(54, 162, 235)',
+        borderWidth: 1,
+      },
+    ],
   });
 
   const controls = useAnimation();
@@ -125,19 +116,18 @@ const PerformanceMatrix: React.FC = () => {
   useEffect(() => {
     if (inView) {
       controls.start('visible');
-      // Animate the chart data
       const finalData = {
-        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+        labels: ['Response Time', 'Accuracy', 'Scalability', 'Cost Efficiency'],
         datasets: [
           {
             ...chartData.datasets[0],
-            data: [55, 80, 115, 160, 210, 250]
+            data: [75, 85, 60, 70],
           },
           {
             ...chartData.datasets[1],
-            data: [120, 150, 190, 240, 300, 350]
-          }
-        ]
+            data: [95, 99, 90, 85],
+          },
+        ],
       };
 
       const duration = 2000;
@@ -166,8 +156,7 @@ const PerformanceMatrix: React.FC = () => {
     }
   }, [inView]);
 
-  // Chart options with updated font styles
-  const lineChartOptions = {
+  const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -182,9 +171,6 @@ const PerformanceMatrix: React.FC = () => {
           },
           padding: 20
         }
-      },
-      title: {
-        display: false,
       },
       tooltip: {
         mode: 'index' as const,
@@ -208,9 +194,8 @@ const PerformanceMatrix: React.FC = () => {
     },
     scales: {
       y: {
-        type: 'linear' as const,
-        display: true,
-        position: 'left' as const,
+        beginAtZero: true,
+        max: 100,
         grid: {
           color: 'rgba(255, 255, 255, 0.1)',
         },
@@ -219,41 +204,6 @@ const PerformanceMatrix: React.FC = () => {
           font: {
             family: "'JetBrains Mono', monospace",
             size: 12
-          }
-        },
-        title: {
-          display: true,
-          text: 'Flights per Hour',
-          color: 'rgba(255, 255, 255, 0.6)',
-          font: {
-            family: "'Exo 2', sans-serif",
-            size: 13,
-            weight: 500
-          }
-        }
-      },
-      y1: {
-        type: 'linear' as const,
-        display: true,
-        position: 'right' as const,
-        grid: {
-          drawOnChartArea: false,
-        },
-        ticks: {
-          color: 'rgba(108, 255, 175, 0.8)',
-          font: {
-            family: "'JetBrains Mono', monospace",
-            size: 12
-          }
-        },
-        title: {
-          display: true,
-          text: 'Alerts Resolved',
-          color: 'rgba(108, 255, 175, 0.6)',
-          font: {
-            family: "'Exo 2', sans-serif",
-            size: 13,
-            weight: 500
           }
         }
       },
@@ -272,27 +222,11 @@ const PerformanceMatrix: React.FC = () => {
     }
   };
 
-  // Updated Realistic Metrics
   const metrics = [
-    { label: 'Airspace Capacity Utilization', value: '78%', change: '+15%', positive: true, icon: '📊' },
-    { label: 'Real-time Conflict Resolution Rate', value: '99.98%', change: '+0.05%', positive: true, icon: '🛡️' },
-    { label: 'Average Flight Deviation', value: '< 2.5m', change: '-50%', positive: true, icon: '✈️' },
-    { label: 'System Uptime', value: '99.995%', change: '+0.02%', positive: true, icon: '⏱️' }
-  ];
-
-  // Realistic System Load Distribution
-  const systemLoad = [
-    { name: 'Flight Path Planning', percentage: 40, color: '#00aaff' },
-    { name: 'Conflict Detection & Resolution', percentage: 35, color: '#6cffaf' },
-    { name: 'Real-time Monitoring & Comms', percentage: 25, color: '#ffcf56' },
-  ];
-
-  // Realistic Peak Traffic Hours
-  const peakTraffic = [
-    { time: 'Early Morning (6-8 AM)', density: 'Moderate', color: 'text-blue-400' },
-    { time: 'Morning Rush (8-10 AM)', density: 'High', color: 'text-yellow-400' },
-    { time: 'Midday (1-3 PM)', density: 'Peak', color: 'text-red-500' },
-    { time: 'Evening Rush (5-7 PM)', density: 'High', color: 'text-yellow-400' }
+    { label: 'Response Time Improvement', value: '95%', change: '+20%', positive: true, icon: '⚡' },
+    { label: 'Accuracy Enhancement', value: '99%', change: '+14%', positive: true, icon: '🎯' },
+    { label: 'Scalability Increase', value: '90%', change: '+30%', positive: true, icon: '📈' },
+    { label: 'Cost Reduction', value: '85%', change: '-15%', positive: true, icon: '💰' }
   ];
 
   return (
@@ -305,10 +239,10 @@ const PerformanceMatrix: React.FC = () => {
           className="text-center mb-16"
         >
           <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight font-orbitron uppercase">
-            Performance Matrix
+            Correlation Matrices
           </h2>
           <p className="mt-4 text-xl text-white/80 font-exo">
-            Real-time UATM system analytics and operational KPIs
+            Traditional Systems vs UATM Implementation
           </p>
         </motion.div>
 
@@ -319,7 +253,7 @@ const PerformanceMatrix: React.FC = () => {
           ))}
         </div>
 
-        {/* Chart Section: UATM Growth Trends */}
+        {/* Comparison Chart */}
         <motion.div
           ref={ref}
           initial="hidden"
@@ -332,53 +266,61 @@ const PerformanceMatrix: React.FC = () => {
           className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 mb-12"
         >
           <h3 className="text-xl font-bold text-white mb-6 text-center font-orbitron uppercase tracking-wide">
-            UATM Operational Growth (6 Months)
+            Performance Comparison
           </h3>
           <div className="h-[400px]">
-            <Line options={lineChartOptions} data={chartData} />
+            <Bar options={chartOptions} data={chartData} />
           </div>
         </motion.div>
 
-        {/* Additional Stats */}
+        {/* Additional Comparison Details */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* System Load Distribution */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 animate-fade-in-up">
+          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
             <h3 className="text-xl font-bold text-white mb-4 font-orbitron uppercase tracking-wide">
-              System Task Distribution
+              Traditional Systems
             </h3>
-            <div className="space-y-4">
-              {systemLoad.map((item) => (
-                <div key={item.name}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-white/80 font-exo">{item.name}</span>
-                    <span className="text-white font-medium font-jetbrainsMono">{item.percentage}%</span>
-                  </div>
-                  <div className="h-2.5 w-full bg-white/10 rounded-full">
-                    <div
-                      className="h-2.5 rounded-full"
-                      style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ul className="space-y-3 text-white/80">
+              <li className="flex items-center gap-2">
+                <span className="text-red-500">•</span>
+                Manual conflict resolution
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-red-500">•</span>
+                Limited scalability
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-red-500">•</span>
+                Higher operational costs
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-red-500">•</span>
+                Slower response times
+              </li>
+            </ul>
           </div>
 
-          {/* Peak Traffic Hours */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 animate-fade-in-up">
+          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
             <h3 className="text-xl font-bold text-white mb-4 font-orbitron uppercase tracking-wide">
-              Peak Traffic Hours
+              UATM Implementation
             </h3>
-            <div className="space-y-3">
-              {peakTraffic.map((period) => (
-                <div key={period.time} className="flex justify-between items-center text-sm">
-                  <span className="text-white/70 w-2/5 font-exo">{period.time}</span>
-                  <div className={`w-3/5 text-right font-medium ${period.color} font-jetbrainsMono`}>
-                    {period.density} Traffic Density
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ul className="space-y-3 text-white/80">
+              <li className="flex items-center gap-2">
+                <span className="text-green-500">•</span>
+                AI-powered automation
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-green-500">•</span>
+                Dynamic scalability
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-green-500">•</span>
+                Cost-effective operations
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-green-500">•</span>
+                Real-time response
+              </li>
+            </ul>
           </div>
         </div>
       </div>
@@ -386,4 +328,4 @@ const PerformanceMatrix: React.FC = () => {
   );
 };
 
-export default PerformanceMatrix; 
+export default CorrelationMatrices; 

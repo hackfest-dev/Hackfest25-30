@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import Cursor from './components/Cursor';
 import Hero from './components/Hero';
 import ProblemStatement from './components/sections/ProblemStatement';
@@ -12,9 +12,7 @@ import AnimatedPage from './components/AnimatedPage';
 import FeatureOneDetails from './components/sections/FeatureOneDetails';
 import FeatureTwoDetails from './components/sections/FeatureTwoDetails';
 import FeatureThreeDetails from './components/sections/FeatureThreeDetails';
-import PhaseOneDetails from './components/sections/implementation/PhaseOneDetails';
-import PhaseTwoDetails from './components/sections/implementation/PhaseTwoDetails';
-import PhaseThreeDetails from './components/sections/implementation/PhaseThreeDetails';
+import ImplementationDetails from './components/sections/implementation/ImplementationDetails';
 import './styles/cursor.css';
 
 // Wrap the main content in a component to use useLocation
@@ -63,12 +61,15 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate loading time
-    const timer = setTimeout(() => {
+    // Only show loading animation on initial page load
+    if (window.location.pathname === '/') {
+      const timer = setTimeout(() => {
+        setIsLoading(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    } else {
       setIsLoading(false);
-    }, 2000);
-
-    return () => clearTimeout(timer);
+    }
   }, []);
 
   if (isLoading) {
@@ -84,9 +85,14 @@ const App = () => {
           <Route path="/features/ai-traffic-prediction" element={<FeatureOneDetails />} />
           <Route path="/features/dynamic-route-optimization" element={<FeatureTwoDetails />} />
           <Route path="/features/real-time-monitoring" element={<FeatureThreeDetails />} />
-          <Route path="/implementation/phase-one" element={<PhaseOneDetails />} />
-          <Route path="/implementation/phase-two" element={<PhaseTwoDetails />} />
-          <Route path="/implementation/phase-three" element={<PhaseThreeDetails />} />
+          <Route path="/implementation" element={
+            <div className="relative z-50">
+              <AnimatedPage showParticles={false} showParallax={true}>
+                <ImplementationDetails />
+              </AnimatedPage>
+            </div>
+          } />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
     </Router>

@@ -1,6 +1,5 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import AnimatedCard from '../AnimatedCard';
 import AnimatedSection from '../AnimatedSection';
 import AnimatedText from '../AnimatedText';
 import { useNavigate } from 'react-router-dom';
@@ -64,9 +63,9 @@ const BusinessAnalytics: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="py-20 bg-black text-white">
+    <section className="py-24 bg-black text-white">
       <div className="container mx-auto px-4">
-        <AnimatedSection className="mb-16" delay={0.1}>
+        <AnimatedSection className="mb-24" delay={0.1}>
           <div className="flex flex-col items-center justify-center text-center">
             <AnimatedText
               text="Business Analytics (B2B)"
@@ -87,7 +86,7 @@ const BusinessAnalytics: React.FC = () => {
 
         <AnimatedSection delay={0.2}>
           <motion.div 
-            className="flex justify-center mb-16"
+            className="flex justify-center mb-24"
             initial={{ scale: 0.95, opacity: 0 }}
             whileInView={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.3, ease: "easeOut" }}
@@ -201,7 +200,7 @@ const BusinessAnalytics: React.FC = () => {
         </AnimatedSection>
 
         <AnimatedSection delay={0.3}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-24">
             {partners.map((partner, index) => (
               <motion.div
                 key={partner.category}
@@ -280,7 +279,7 @@ const BusinessAnalytics: React.FC = () => {
         </AnimatedSection>
 
         <AnimatedSection delay={0.5}>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-24">
             {[
               { value: '₹50,000 Cr', label: 'Estimated Market Size by 2025', color: 'text-primary' },
               { value: '85%', label: 'Cost Reduction for Partners', color: 'text-accent' },
@@ -331,7 +330,7 @@ const BusinessAnalytics: React.FC = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.2, duration: 0.3 }}
-            className="text-center mb-20"
+            className="text-center mb-24"
           >
             <motion.button
               whileHover={{ 
@@ -349,7 +348,7 @@ const BusinessAnalytics: React.FC = () => {
 
         {/* Future Scope Section */}
         <AnimatedSection delay={0.2}>
-          <div className="flex flex-col items-center justify-center text-center mb-12">
+          <div className="flex flex-col items-center justify-center text-center mb-24">
             <AnimatedText
               text="Future Scope & Innovation"
               className="text-4xl md:text-5xl font-bold text-white tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-secondary"
@@ -366,7 +365,7 @@ const BusinessAnalytics: React.FC = () => {
             </motion.p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-24">
             {/* Air Taxis */}
             <motion.div
               initial={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -556,7 +555,7 @@ const BusinessAnalytics: React.FC = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.4, duration: 0.3 }}
-            className="text-center text-white/60 max-w-2xl mx-auto mb-20"
+            className="text-center text-white/60 max-w-2xl mx-auto mb-24"
           >
             <p>Our future scope initiatives are designed to revolutionize urban air mobility while promoting sustainability and environmental consciousness.</p>
           </motion.div>
@@ -564,7 +563,7 @@ const BusinessAnalytics: React.FC = () => {
 
         {/* Implementation Section */}
         <AnimatedSection delay={0.2}>
-          <div className="flex flex-col items-center justify-center text-center mb-12">
+          <div className="flex flex-col items-center justify-center text-center mb-24">
             <AnimatedText
               text="Implementation Strategy"
               className="text-4xl md:text-5xl font-bold text-white tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-secondary"
@@ -581,7 +580,7 @@ const BusinessAnalytics: React.FC = () => {
             </motion.p>
           </div>
 
-          <div className="grid grid-cols-1 gap-8 max-w-4xl mx-auto mb-16">
+          <div className="grid grid-cols-1 gap-8 max-w-4xl mx-auto mb-24">
             {/* Phase 1: Drone Company Partnerships */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
@@ -594,7 +593,7 @@ const BusinessAnalytics: React.FC = () => {
                 borderColor: "rgba(59, 130, 246, 0.5)"
               }}
               className="bg-gradient-to-br from-gray-900/50 to-black/50 backdrop-blur-sm rounded-2xl p-8 border border-white/10 cursor-pointer"
-              onClick={() => navigate('/implementation/phase-one')}
+              onClick={() => navigate('/implementation')}
             >
               <div className="flex items-center mb-4">
                 <motion.div
@@ -640,7 +639,7 @@ const BusinessAnalytics: React.FC = () => {
                   className="bg-white/10 hover:bg-white/20 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate('/implementation/phase-one');
+                    navigate('/implementation');
                   }}
                 >
                   Learn More →
@@ -654,9 +653,203 @@ const BusinessAnalytics: React.FC = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.5, duration: 0.3 }}
-            className="text-center text-white/60 max-w-2xl mx-auto"
+            className="text-center text-white/60 max-w-2xl mx-auto mb-24"
           >
             <p>Our implementation strategy focuses on building strong partnerships with drone manufacturers to ensure seamless integration and safety standards across all operations.</p>
+          </motion.div>
+        </AnimatedSection>
+
+        {/* Monetization Section */}
+        <AnimatedSection delay={0.2}>
+          <div className="flex flex-col items-center justify-center text-center mb-24">
+            <AnimatedText
+              text="Monetization Strategy"
+              className="text-4xl md:text-5xl font-bold text-white tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-secondary mb-6"
+              delay={0.1}
+            />
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }}
+              className="mt-4 text-xl text-white/80"
+            >
+              Multiple revenue streams to ensure sustainable growth and profitability
+            </motion.p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-6xl mx-auto mb-24">
+            {/* Licensing / SaaS Model */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+              whileHover={{ 
+                scale: 1.02,
+                boxShadow: "0 0 30px rgba(59, 130, 246, 0.2)",
+                borderColor: "rgba(59, 130, 246, 0.5)"
+              }}
+              className="bg-gradient-to-br from-gray-900/50 to-black/50 backdrop-blur-sm rounded-2xl p-10 border border-white/10"
+            >
+              <div className="flex items-center mb-6">
+                <motion.div
+                  whileHover={{ scale: 1.1, rotate: 10 }}
+                  transition={{ type: "spring", stiffness: 200 }}
+                  className="text-5xl mr-6"
+                >
+                  💳
+                </motion.div>
+                <h3 className="text-2xl font-bold text-white">Licensing / SaaS</h3>
+              </div>
+              <motion.ul className="space-y-6 text-white/80">
+                <motion.li
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="flex items-start space-x-4"
+                >
+                  <span className="text-primary text-xl">•</span>
+                  <span>Subscription-based model</span>
+                </motion.li>
+                <motion.li
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="flex items-start space-x-4"
+                >
+                  <span className="text-primary text-xl">•</span>
+                  <span>₹20,000/month per 100 drones</span>
+                </motion.li>
+                <motion.li
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="flex items-start space-x-4"
+                >
+                  <span className="text-primary text-xl">•</span>
+                  <span>Scalable pricing tiers</span>
+                </motion.li>
+              </motion.ul>
+            </motion.div>
+
+            {/* Revenue Share Model */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.3, duration: 0.4 }}
+              whileHover={{ 
+                scale: 1.02,
+                boxShadow: "0 0 30px rgba(59, 130, 246, 0.2)",
+                borderColor: "rgba(59, 130, 246, 0.5)"
+              }}
+              className="bg-gradient-to-br from-gray-900/50 to-black/50 backdrop-blur-sm rounded-2xl p-10 border border-white/10"
+            >
+              <div className="flex items-center mb-6">
+                <motion.div
+                  whileHover={{ scale: 1.1, rotate: 10 }}
+                  transition={{ type: "spring", stiffness: 200 }}
+                  className="text-5xl mr-6"
+                >
+                  🤝
+                </motion.div>
+                <h3 className="text-2xl font-bold text-white">Revenue Share</h3>
+              </div>
+              <motion.ul className="space-y-6 text-white/80">
+                <motion.li
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="flex items-start space-x-4"
+                >
+                  <span className="text-primary text-xl">•</span>
+                  <span>₹2–₹10 per delivery routed</span>
+                </motion.li>
+                <motion.li
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="flex items-start space-x-4"
+                >
+                  <span className="text-primary text-xl">•</span>
+                  <span>Partnerships with Swiggy, Zomato</span>
+                </motion.li>
+                <motion.li
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="flex items-start space-x-4"
+                >
+                  <span className="text-primary text-xl">•</span>
+                  <span>Logistics partner integration</span>
+                </motion.li>
+              </motion.ul>
+            </motion.div>
+
+            {/* Data & Insights Sales */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.4, duration: 0.4 }}
+              whileHover={{ 
+                scale: 1.02,
+                boxShadow: "0 0 30px rgba(59, 130, 246, 0.2)",
+                borderColor: "rgba(59, 130, 246, 0.5)"
+              }}
+              className="bg-gradient-to-br from-gray-900/50 to-black/50 backdrop-blur-sm rounded-2xl p-10 border border-white/10"
+            >
+              <div className="flex items-center mb-6">
+                <motion.div
+                  whileHover={{ scale: 1.1, rotate: 10 }}
+                  transition={{ type: "spring", stiffness: 200 }}
+                  className="text-5xl mr-6"
+                >
+                  📊
+                </motion.div>
+                <h3 className="text-2xl font-bold text-white">Data & Insights</h3>
+              </div>
+              <motion.ul className="space-y-6 text-white/80">
+                <motion.li
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="flex items-start space-x-4"
+                >
+                  <span className="text-primary text-xl">•</span>
+                  <span>Drone traffic heatmaps</span>
+                </motion.li>
+                <motion.li
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="flex items-start space-x-4"
+                >
+                  <span className="text-primary text-xl">•</span>
+                  <span>Geofence compliance data</span>
+                </motion.li>
+                <motion.li
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="flex items-start space-x-4"
+                >
+                  <span className="text-primary text-xl">•</span>
+                  <span>Noise-sensitive zone analytics</span>
+                </motion.li>
+              </motion.ul>
+            </motion.div>
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.5, duration: 0.3 }}
+            className="text-center text-white/60 max-w-2xl mx-auto mb-24"
+          >
+            <p>Our diversified monetization strategy ensures sustainable revenue streams while providing value to our partners and stakeholders.</p>
           </motion.div>
         </AnimatedSection>
       </div>
