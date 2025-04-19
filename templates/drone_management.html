@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Management System</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            height: 60vh;
+            width: 100%;
+        }
+        .control-panel {
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        .table-container {
+            max-height: 40vh;
+            overflow-y: auto;
+        }
+        .route-line {
+            stroke-dasharray: 5, 5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-8">
+                <div id="map"></div>
+            </div>
+            <div class="col-md-4">
+                <div class="table-container">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Drone ID</th>
+                                <th>Status</th>
+                                <th>Battery</th>
+                                <th>Current Location</th>
+                                <th>Route</th>
+                            </tr>
+                        </thead>
+                        <tbody id="drone-table-body">
+                            <!-- Drone rows will be added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Initialize the map
+        const map = L.map('map').setView([0, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Store drone markers and routes
+        const droneMarkers = {};
+        const droneRoutes = {};
+        const deliveryPoints = JSON.parse('{{ delivery_points | tojson | safe }}');
+
+        // Function to generate random route for a drone
+        function generateRandomRoute(drone) {
+            const availablePoints = deliveryPoints.filter(p => p.id !== drone.id);
+            const pickup = availablePoints[Math.floor(Math.random() * availablePoints.length)];
+            const dropoff = availablePoints[Math.floor(Math.random() * availablePoints.length)];
+            
+            return {
+                pickup: { lat: pickup.latitude, lon: pickup.longitude },
+                dropoff: { lat: dropoff.latitude, lon: dropoff.longitude }
+            };
+        }
+
+        // Function to calculate route between two points
+        async function calculateRoute(start, end) {
+            try {
+                const response = await fetch('/api/calculate-route', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pickup: { lat: start.lat, lon: start.lon },
+                        drop: { lat: end.lat, lon: end.lon }
+                    })
+                });
+                return await response.json();
+            } catch (error) {
+                console.error('Error calculating route:', error);
+                return null;
+            }
+        }
+
+        // Function to update drone on map
+        async function updateDroneOnMap(drone) {
+            // Remove existing marker and route if they exist
+            if (droneMarkers[drone.id]) {
+                map.removeLayer(droneMarkers[drone.id]);
+            }
+            if (droneRoutes[drone.id]) {
+                map.removeLayer(droneRoutes[drone.id]);
+            }
+
+            // Create new marker
+            const marker = L.marker([drone.latitude, drone.longitude])
+                .addTo(map)
+                .bindPopup(`
+                    <strong>Drone ${drone.id}</strong><br>
+                    State: ${drone.state}<br>
+                    Battery: ${drone.battery_percent}%<br>
+                    Altitude: ${drone.altitude}m
+                `);
+            droneMarkers[drone.id] = marker;
+
+            // Generate and display route
+            const route = generateRandomRoute(drone);
+            const routeData = await calculateRoute(route.pickup, route.dropoff);
+            
+            if (routeData) {
+                const routeCoordinates = [];
+                routeData.segments.forEach(segment => {
+                    routeCoordinates.push([segment.start.lat, segment.start.lon]);
+                    routeCoordinates.push([segment.end.lat, segment.end.lon]);
+                });
+
+                const routeLine = L.polyline(routeCoordinates, {
+                    color: getRandomColor(),
+                    weight: 3,
+                    opacity: 0.7,
+                    className: 'route-line'
+                }).addTo(map);
+                droneRoutes[drone.id] = routeLine;
+
+                // Add pickup and dropoff markers
+                L.marker([route.pickup.lat, route.pickup.lon])
+                    .addTo(map)
+                    .bindPopup(`Pickup for Drone ${drone.id}`);
+                
+                L.marker([route.dropoff.lat, route.dropoff.lon])
+                    .addTo(map)
+                    .bindPopup(`Dropoff for Drone ${drone.id}`);
+            }
+        }
+
+        // Function to get random color for routes
+        function getRandomColor() {
+            const colors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // Function to update drone table
+        function updateDroneTable(drones) {
+            const tableBody = document.getElementById('drone-table-body');
+            tableBody.innerHTML = '';
+
+            drones.forEach(drone => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${drone.id}</td>
+                    <td>${drone.state}</td>
+                    <td>${drone.battery_percent}%</td>
+                    <td>(${drone.latitude.toFixed(4)}, ${drone.longitude.toFixed(4)})</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="updateDroneOnMap(${JSON.stringify(drone)})">
+                            Show Route
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Initialize drones and display them
+        const drones = deliveryPoints.map(point => ({
+            id: point.id,
+            latitude: point.latitude,
+            longitude: point.longitude,
+            state: point.state,
+            battery_percent: point.battery_percent,
+            altitude: point.altitude
+        }));
+
+        updateDroneTable(drones);
+
+        // Fit map to show all delivery points
+        const bounds = L.latLngBounds(deliveryPoints.map(p => [p.latitude, p.longitude]));
+        map.fitBounds(bounds);
+    </script>
+</body>
+</html> 

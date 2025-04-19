@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Route Testing - 1000 Drones</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            height: 50vh;
+            width: 100%;
+        }
+        .control-panel {
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .table-container {
+            max-height: 30vh;
+            overflow-y: auto;
+        }
+        .route-line {
+            stroke-dasharray: 5, 5;
+        }
+        .chart-container {
+            height: 30vh;
+            margin-top: 20px;
+        }
+        .stats-container {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .progress-bar {
+            transition: width 0.3s ease-in-out;
+        }
+        .timing-stats {
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-8">
+                <div id="map"></div>
+                <div class="chart-container">
+                    <canvas id="efficiencyChart"></canvas>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-container">
+                    <h5>Performance Statistics</h5>
+                    <div id="stats">
+                        <p>Total Drones: <span id="totalDrones">0</span></p>
+                        <p>Average Route Distance: <span id="avgDistance">0</span> km</p>
+                        <p>Average Energy Consumption: <span id="avgEnergy">0</span> kWh</p>
+                        <p>Average Route Time: <span id="avgTime">0</span> hours</p>
+                        <p>Total Energy Used: <span id="totalEnergy">0</span> kWh</p>
+                    </div>
+                    <div class="timing-stats">
+                        <h6>Routing Performance</h6>
+                        <p>Total Routing Time: <span id="totalRoutingTime">0</span> ms</p>
+                        <p>Average Time per Route: <span id="avgRouteTime">0</span> ms</p>
+                        <p>Routes per Second: <span id="routesPerSecond">0</span></p>
+                    </div>
+                    <div class="progress mt-3">
+                        <div id="routingProgress" class="progress-bar" role="progressbar" style="width: 0%">0%</div>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Drone ID</th>
+                                <th>Status</th>
+                                <th>Battery</th>
+                                <th>Route Info</th>
+                            </tr>
+                        </thead>
+                        <tbody id="drone-table-body">
+                            <!-- Drone rows will be added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Initialize the map centered on Bangalore
+        const BANGALORE_CENTER = {
+            lat: 12.9716,
+            lon: 77.5946
+        };
+        const BASE_LOCATIONS = [
+            { lat: 12.9716, lon: 77.5946, name: 'Bangalore Center' },
+            { lat: 12.9784, lon: 77.6408, name: 'Whitefield' },
+            { lat: 12.9537, lon: 77.5775, name: 'Jayanagar' }
+        ];
+
+        const map = L.map('map').setView([BANGALORE_CENTER.lat, BANGALORE_CENTER.lon], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Add base locations to map
+        BASE_LOCATIONS.forEach(base => {
+            L.marker([base.lat, base.lon])
+                .addTo(map)
+                .bindPopup(`<strong>Base Station: ${base.name}</strong>`)
+                .openPopup();
+        });
+
+        // Store drone markers, routes, and performance data
+        const droneMarkers = {};
+        const droneRoutes = {};
+        const performanceData = {
+            distances: [],
+            energies: [],
+            times: [],
+            routeTimings: []
+        };
+
+        // Add route layer group
+        const routeLayer = L.layerGroup().addTo(map);
+
+        // Initialize Chart.js
+        const ctx = document.getElementById('efficiencyChart').getContext('2d');
+        const efficiencyChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Distance (km)',
+                        data: [],
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Energy (kWh)',
+                        data: [],
+                        borderColor: 'rgb(255, 99, 132)',
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Time (hours)',
+                        data: [],
+                        borderColor: 'rgb(54, 162, 235)',
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Function to assign drone to base location
+        function assignDroneToBase(droneId) {
+            const baseIndex = Math.abs(hashCode(droneId)) % BASE_LOCATIONS.length;
+            return BASE_LOCATIONS[baseIndex];
+        }
+
+        // Simple hash function
+        function hashCode(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return hash;
+        }
+
+        // Initialize 1000 drones at base locations
+        const drones = Array.from({ length: 1000 }, (_, i) => {
+            const droneId = `DRONE-${i + 1}`;
+            const base = assignDroneToBase(droneId);
+            return {
+                id: droneId,
+                status: 'Available',
+                battery: Math.floor(Math.random() * 100),
+                latitude: base.lat,
+                longitude: base.lon,
+                altitude: 0.0,
+                base: base
+            };
+        });
+
+        // Update statistics
+        function updateStatistics() {
+            const totalDrones = performanceData.distances.length;
+            const avgDistance = performanceData.distances.reduce((a, b) => a + b, 0) / totalDrones || 0;
+            const avgEnergy = performanceData.energies.reduce((a, b) => a + b, 0) / totalDrones || 0;
+            const avgTime = performanceData.times.reduce((a, b) => a + b, 0) / totalDrones || 0;
+            const totalEnergy = performanceData.energies.reduce((a, b) => a + b, 0);
+            
+            // Update timing statistics
+            const totalRoutingTime = performanceData.routeTimings.reduce((a, b) => a + b, 0);
+            const avgRouteTime = totalRoutingTime / totalDrones || 0;
+            const routesPerSecond = totalDrones / (totalRoutingTime / 1000) || 0;
+
+            document.getElementById('totalDrones').textContent = totalDrones;
+            document.getElementById('avgDistance').textContent = avgDistance.toFixed(2);
+            document.getElementById('avgEnergy').textContent = avgEnergy.toFixed(2);
+            document.getElementById('avgTime').textContent = avgTime.toFixed(2);
+            document.getElementById('totalEnergy').textContent = totalEnergy.toFixed(2);
+            
+            document.getElementById('totalRoutingTime').textContent = totalRoutingTime.toFixed(2);
+            document.getElementById('avgRouteTime').textContent = avgRouteTime.toFixed(2);
+            document.getElementById('routesPerSecond').textContent = routesPerSecond.toFixed(2);
+
+            // Update progress bar
+            const progress = (totalDrones / drones.length) * 100;
+            const progressBar = document.getElementById('routingProgress');
+            progressBar.style.width = `${progress}%`;
+            progressBar.textContent = `${Math.round(progress)}%`;
+
+            // Update chart
+            efficiencyChart.data.labels = Array.from({ length: totalDrones }, (_, i) => `Drone ${i + 1}`);
+            efficiencyChart.data.datasets[0].data = performanceData.distances;
+            efficiencyChart.data.datasets[1].data = performanceData.energies;
+            efficiencyChart.data.datasets[2].data = performanceData.times;
+            efficiencyChart.update();
+        }
+
+        // Function to generate random coordinates around a center point
+        function generateRandomCoordinates(centerLat, centerLon, radiusKm) {
+            const r = radiusKm / 111.32; // Convert km to degrees
+            const u = Math.random();
+            const v = Math.random();
+            const w = r * Math.sqrt(u);
+            const t = 2 * Math.PI * v;
+            const x = w * Math.cos(t);
+            const y = w * Math.sin(t);
+            return {
+                lat: centerLat + y,
+                lon: centerLon + x / Math.cos(centerLat * Math.PI / 180)
+            };
+        }
+
+        // Function to calculate route between two points
+        async function calculateRoute(start, end) {
+            const startTime = performance.now();
+            try {
+                const response = await fetch('/api/calculate-route', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pickup: { lat: start.lat, lon: start.lon },
+                        drop: { lat: end.lat, lon: end.lon }
+                    })
+                });
+                const routeData = await response.json();
+                const endTime = performance.now();
+                performanceData.routeTimings.push(endTime - startTime);
+                return routeData;
+            } catch (error) {
+                console.error('Error calculating route:', error);
+                return null;
+            }
+        }
+
+        // Function to draw route on map
+        function drawRoute(routeData, droneId) {
+            // Remove existing route if any
+            if (droneRoutes[droneId]) {
+                routeLayer.removeLayer(droneRoutes[droneId]);
+            }
+
+            // Create polyline for the route
+            const routePoints = routeData.segments.flatMap(segment => [
+                [segment.start.lat, segment.start.lon],
+                [segment.end.lat, segment.end.lon]
+            ]);
+
+            const route = L.polyline(routePoints, {
+                color: '#007bff', // Blue color for all routes
+                weight: 2,
+                opacity: 0.7,
+                dashArray: '5, 5'
+            }).addTo(routeLayer);
+
+            // Store the route
+            droneRoutes[droneId] = route;
+
+            // Add markers for pickup and dropoff
+            const pickupMarker = L.marker([routeData.segments[0].start.lat, routeData.segments[0].start.lon], {
+                icon: L.divIcon({
+                    className: 'custom-div-icon',
+                    html: '<div style="background-color: #28a745; width: 10px; height: 10px; border-radius: 50%;"></div>'
+                })
+            }).addTo(map);
+
+            const dropoffMarker = L.marker([routeData.segments[routeData.segments.length - 1].end.lat, routeData.segments[routeData.segments.length - 1].end.lon], {
+                icon: L.divIcon({
+                    className: 'custom-div-icon',
+                    html: '<div style="background-color: #dc3545; width: 10px; height: 10px; border-radius: 50%;"></div>'
+                })
+            }).addTo(map);
+        }
+
+        // Function to update drone on map
+        async function updateDroneOnMap(droneId) {
+            const drone = drones.find(d => d.id === droneId);
+            if (drone) {
+                const pickup = generateRandomCoordinates(BANGALORE_CENTER.lat, BANGALORE_CENTER.lon, 10);
+                const dropoff = generateRandomCoordinates(BANGALORE_CENTER.lat, BANGALORE_CENTER.lon, 10);
+                
+                const routeData = await calculateRoute(pickup, dropoff);
+                
+                if (routeData) {
+                    performanceData.distances.push(routeData.total_distance);
+                    performanceData.energies.push(routeData.total_energy_consumption);
+                    performanceData.times.push(routeData.total_time);
+
+                    // Draw the route on the map
+                    drawRoute(routeData, droneId);
+
+                    updateStatistics();
+
+                    const row = document.querySelector(`tr[data-drone-id="${drone.id}"]`);
+                    if (row) {
+                        const routeCell = row.querySelector('.route-info');
+                        if (routeCell) {
+                            routeCell.innerHTML = `
+                                Distance: ${routeData.total_distance.toFixed(2)} km<br>
+                                Time: ${routeData.total_time.toFixed(2)} hours<br>
+                                Energy: ${routeData.total_energy_consumption.toFixed(2)} kWh<br>
+                                Max Altitude: ${routeData.segments.reduce((max, seg) => 
+                                    Math.max(max, seg.start.altitude, seg.end.altitude), 0).toFixed(1)}m
+                            `;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Function to update drone table
+        function updateDroneTable(drones) {
+            const tableBody = document.getElementById('drone-table-body');
+            tableBody.innerHTML = '';
+
+            drones.slice(0, 10).forEach(drone => {
+                const row = document.createElement('tr');
+                row.setAttribute('data-drone-id', drone.id);
+                row.innerHTML = `
+                    <td>${drone.id}</td>
+                    <td>${drone.status}</td>
+                    <td>${drone.battery}%</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="updateDroneOnMap('${drone.id}')">
+                            Show Route
+                        </button>
+                        <div class="route-info"></div>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Initialize the table
+        updateDroneTable(drones);
+
+        // Process all drones simultaneously
+        async function processAllDrones() {
+            const startTime = performance.now();
+            const batchSize = 50; // Process 50 drones at a time
+            const totalBatches = Math.ceil(drones.length / batchSize);
+
+            for (let i = 0; i < totalBatches; i++) {
+                const batch = drones.slice(i * batchSize, (i + 1) * batchSize);
+                await Promise.all(batch.map(drone => updateDroneOnMap(drone.id)));
+            }
+
+            const endTime = performance.now();
+            console.log(`Total processing time: ${(endTime - startTime).toFixed(2)}ms`);
+        }
+
+        // Start processing after a short delay
+        setTimeout(processAllDrones, 1000);
+    </script>
+</body>
+</html> 

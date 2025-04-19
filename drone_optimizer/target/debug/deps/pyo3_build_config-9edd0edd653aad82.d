@@ -1,0 +1,13 @@
+C:\Users\Meghn\Desktop\UATM\drone_optimizer\target\debug\deps\libpyo3_build_config-9edd0edd653aad82.rmeta: C:\Users\Meghn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.18.3\src\lib.rs C:\Users\Meghn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.18.3\src\errors.rs C:\Users\Meghn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.18.3\src\impl_.rs C:\Users\Meghn\Desktop\UATM\drone_optimizer\target\debug\build\pyo3-build-config-40c5f24cffccb5b1\out/pyo3-build-config-file.txt C:\Users\Meghn\Desktop\UATM\drone_optimizer\target\debug\build\pyo3-build-config-40c5f24cffccb5b1\out/pyo3-build-config.txt
+
+C:\Users\Meghn\Desktop\UATM\drone_optimizer\target\debug\deps\libpyo3_build_config-9edd0edd653aad82.rlib: C:\Users\Meghn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.18.3\src\lib.rs C:\Users\Meghn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.18.3\src\errors.rs C:\Users\Meghn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.18.3\src\impl_.rs C:\Users\Meghn\Desktop\UATM\drone_optimizer\target\debug\build\pyo3-build-config-40c5f24cffccb5b1\out/pyo3-build-config-file.txt C:\Users\Meghn\Desktop\UATM\drone_optimizer\target\debug\build\pyo3-build-config-40c5f24cffccb5b1\out/pyo3-build-config.txt
+
+C:\Users\Meghn\Desktop\UATM\drone_optimizer\target\debug\deps\pyo3_build_config-9edd0edd653aad82.d: C:\Users\Meghn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.18.3\src\lib.rs C:\Users\Meghn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.18.3\src\errors.rs C:\Users\Meghn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.18.3\src\impl_.rs C:\Users\Meghn\Desktop\UATM\drone_optimizer\target\debug\build\pyo3-build-config-40c5f24cffccb5b1\out/pyo3-build-config-file.txt C:\Users\Meghn\Desktop\UATM\drone_optimizer\target\debug\build\pyo3-build-config-40c5f24cffccb5b1\out/pyo3-build-config.txt
+
+C:\Users\Meghn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.18.3\src\lib.rs:
+C:\Users\Meghn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.18.3\src\errors.rs:
+C:\Users\Meghn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-build-config-0.18.3\src\impl_.rs:
+C:\Users\Meghn\Desktop\UATM\drone_optimizer\target\debug\build\pyo3-build-config-40c5f24cffccb5b1\out/pyo3-build-config-file.txt:
+C:\Users\Meghn\Desktop\UATM\drone_optimizer\target\debug\build\pyo3-build-config-40c5f24cffccb5b1\out/pyo3-build-config.txt:
+
+# env-dep:OUT_DIR=C:\\Users\\Meghn\\Desktop\\UATM\\drone_optimizer\\target\\debug\\build\\pyo3-build-config-40c5f24cffccb5b1\\out

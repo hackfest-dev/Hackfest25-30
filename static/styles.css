@@ -1,0 +1,163 @@
+/* General styles */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f5f5f5;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Map styles */
+#map {
+    height: 600px;
+    width: 100%;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Card styles */
+.card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.card-body {
+    padding: 15px;
+}
+
+/* Button styles */
+.btn {
+    display: inline-block;
+    font-weight: 400;
+    text-align: center;
+    vertical-align: middle;
+    cursor: pointer;
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    border-radius: 0.25rem;
+    transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+}
+
+.btn-primary {
+    color: #fff;
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.btn-warning {
+    color: #212529;
+    background-color: #ffc107;
+    border-color: #ffc107;
+}
+
+.btn-danger {
+    color: #fff;
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+/* Status panel styles */
+.status-panel {
+    height: 300px;
+    overflow-y: auto;
+    padding: 15px;
+}
+
+/* Drone and delivery marker styles */
+.drone-marker {
+    width: 12px;
+    height: 12px;
+    background-color: #007bff;
+    border: 2px solid white;
+    border-radius: 50%;
+}
+
+.delivery-marker {
+    width: 12px;
+    height: 12px;
+    background-color: #28a745;
+    border: 2px solid white;
+    border-radius: 50%;
+}
+
+/* Battery indicator styles */
+.battery-indicator {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+}
+
+.battery-high {
+    background-color: #28a745;
+}
+
+.battery-medium {
+    background-color: #ffc107;
+}
+
+.battery-low {
+    background-color: #dc3545;
+}
+
+/* Progress bar styles */
+.progress {
+    height: 20px;
+    background-color: #e9ecef;
+    border-radius: 0.25rem;
+    margin-bottom: 10px;
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: #007bff;
+    border-radius: 0.25rem;
+    transition: width 0.6s ease;
+    color: white;
+    text-align: center;
+    line-height: 20px;
+}
+
+/* Stats card styles */
+.stats-card {
+    margin-bottom: 15px;
+}
+
+.stats-card h6 {
+    margin-bottom: 10px;
+    color: #6c757d;
+}
+
+.stats-card p {
+    margin: 5px 0;
+    color: #212529;
+}
+
+/* Route path styles */
+.drone-path {
+    stroke: #007bff;
+    stroke-width: 2;
+    stroke-dasharray: 5, 5;
+}
+
+.delivery-path {
+    stroke: #28a745;
+    stroke-width: 2;
+} 

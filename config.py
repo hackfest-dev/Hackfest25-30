@@ -4,15 +4,8 @@ from urllib.parse import quote_plus
 
 load_dotenv()
 
-# PostgreSQL Configuration
-POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
-POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
-POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
-POSTGRES_DB = os.getenv("POSTGRES_DB", "drone_delivery")
-
-# Database URL with proper password encoding
-DATABASE_URL = f"postgresql://{POSTGRES_USER}:{quote_plus(POSTGRES_PASSWORD)}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+# Database Configuration
+DATABASE_URL = "sqlite:///./drone_simulation.db"
 
 # Application Configuration
 APP_HOST = os.getenv("APP_HOST", "0.0.0.0")

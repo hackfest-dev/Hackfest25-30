@@ -1,11 +1,16 @@
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey, JSON, Integer, create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum, create_engine
 from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+import enum
 from datetime import datetime
-import uuid
-from config import DATABASE_URL
+import os
+from dotenv import load_dotenv
 
-Base = declarative_base()
+# Load environment variables
+load_dotenv()
+
+# Database configuration
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./drone_simulation.db")
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -16,30 +21,64 @@ def get_db():
     finally:
         db.close()
 
-class DroneSimulationData(Base):
-    __tablename__ = "drone_simulation_data"
+Base = declarative_base()
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    dataset_name = Column(String, nullable=False)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
-    location_data = Column(JSON, nullable=False)  # Stores coordinates and other location data
-    sensor_data = Column(JSON, nullable=False)    # Stores sensor readings
-    battery_data = Column(JSON, nullable=False)   # Stores battery status and consumption
-    weather_data = Column(JSON, nullable=True)    # Stores weather conditions
-    simulation_parameters = Column(JSON, nullable=False)  # Stores simulation settings
-    status = Column(String, nullable=False)       # Status of the simulation
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+class Priority(enum.Enum):
+    low = "low"
+    normal = "normal"
+    high = "high"
 
-class DroneSimulationResult(Base):
-    __tablename__ = "drone_simulation_results"
+class DroneStatus(enum.Enum):
+    available = "available"
+    busy = "busy"
+    charging = "charging"
+    maintenance = "maintenance"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    simulation_id = Column(String, ForeignKey('drone_simulation_data.id'), nullable=False)
-    path_data = Column(JSON, nullable=False)      # Stores the calculated path
-    energy_consumption = Column(Float, nullable=False)
-    time_taken = Column(Float, nullable=False)    # Time taken for the simulation
-    success_rate = Column(Float, nullable=False)  # Success rate of the simulation
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+class DeliveryStatus(enum.Enum):
+    pending = "pending"
+    in_progress = "in_progress"
+    completed = "completed"
+    failed = "failed"
 
-    simulation = relationship("DroneSimulationData", backref="results") 
+class SimulationStatus(enum.Enum):
+    created = "created"
+    running = "running"
+    completed = "completed"
+    failed = "failed"
+
+class Simulation(Base):
+    __tablename__ = "simulations"
+    
+    id = Column(String, primary_key=True)
+    num_drones = Column(Integer)
+    num_deliveries = Column(Integer)
+    created_at = Column(DateTime)
+
+    drones = relationship("Drone", back_populates="simulation")
+    deliveries = relationship("Delivery", back_populates="simulation")
+
+class Drone(Base):
+    __tablename__ = "drones"
+    
+    id = Column(String, primary_key=True)
+    simulation_id = Column(String, ForeignKey("simulations.id"))
+    status = Column(String)
+    battery = Column(Float)
+    latitude = Column(Float)
+    longitude = Column(Float)
+    altitude = Column(Float)
+
+    simulation = relationship("Simulation", back_populates="drones")
+
+class Delivery(Base):
+    __tablename__ = "deliveries"
+    
+    id = Column(String, primary_key=True)
+    simulation_id = Column(String, ForeignKey("simulations.id"))
+    pickup_lat = Column(Float)
+    pickup_lon = Column(Float)
+    drop_lat = Column(Float)
+    drop_lon = Column(Float)
+    status = Column(String)
+
+    simulation = relationship("Simulation", back_populates="deliveries") 
