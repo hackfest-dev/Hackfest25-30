@@ -279,95 +279,6 @@ const BusinessAnalytics: React.FC = () => {
           </div>
         </AnimatedSection>
 
-        <AnimatedSection delay={0.4}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              whileInView={{ opacity: 1, y: 0, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ 
-                delay: 0.2,
-                duration: 0.3,
-                scale: { type: "spring", stiffness: 200 }
-              }}
-              whileHover={{ 
-                scale: 1.05,
-                boxShadow: "0 0 30px rgba(59, 130, 246, 0.2)",
-                borderColor: "rgba(59, 130, 246, 0.5)"
-              }}
-            >
-              <AnimatedCard className="p-6 transition-all duration-200">
-                <motion.h3
-                  whileHover={{ color: "#3B82F6", scale: 1.05 }}
-                  transition={{ duration: 0.2 }}
-                  className="text-2xl font-semibold mb-4"
-                >
-                  Market Size
-                </motion.h3>
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  whileInView={{ opacity: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.2 }}
-                  className="text-gray-300"
-                >
-                  The Indian UAM market is projected to reach $1.5 billion by 2030, with a CAGR of 25%.
-                </motion.p>
-              </AnimatedCard>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              whileInView={{ opacity: 1, y: 0, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ 
-                delay: 0.3,
-                duration: 0.3,
-                scale: { type: "spring", stiffness: 200 }
-              }}
-              whileHover={{ 
-                scale: 1.05,
-                boxShadow: "0 0 30px rgba(59, 130, 246, 0.2)",
-                borderColor: "rgba(59, 130, 246, 0.5)"
-              }}
-            >
-              <AnimatedCard className="p-6 transition-all duration-200">
-                <motion.h3
-                  whileHover={{ color: "#3B82F6", scale: 1.05 }}
-                  transition={{ duration: 0.2 }}
-                  className="text-2xl font-semibold mb-4"
-                >
-                  Revenue Streams
-                </motion.h3>
-                <motion.ul
-                  initial={{ opacity: 0 }}
-                  whileInView={{ opacity: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.2 }}
-                  className="list-disc list-inside text-gray-300 space-y-2"
-                >
-                  {[
-                    "Subscription-based API access",
-                    "Transaction fees for airspace usage",
-                    "Premium analytics services"
-                  ].map((item, index) => (
-                    <motion.li
-                      key={item}
-                      initial={{ opacity: 0, x: -20 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: 0.1 + index * 0.05 }}
-                      whileHover={{ x: 10, color: "#60A5FA" }}
-                    >
-                      {item}
-                    </motion.li>
-                  ))}
-                </motion.ul>
-              </AnimatedCard>
-            </motion.div>
-          </div>
-        </AnimatedSection>
-
         <AnimatedSection delay={0.5}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
             {[
@@ -666,7 +577,7 @@ const BusinessAnalytics: React.FC = () => {
               transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }}
               className="mt-4 text-xl text-white/80"
             >
-              Strategic partnerships and phased expansion for nationwide coverage
+              Strategic partnerships with drone manufacturers for comprehensive integration
             </motion.p>
           </div>
 
@@ -693,7 +604,7 @@ const BusinessAnalytics: React.FC = () => {
                 >
                   🚀
                 </motion.div>
-                <h3 className="text-2xl font-bold text-white">Phase 1: Drone Company Partnerships</h3>
+                <h3 className="text-2xl font-bold text-white">Drone Company Partnerships</h3>
               </div>
               <motion.ul className="space-y-4 text-white/80">
                 <motion.li
@@ -736,138 +647,6 @@ const BusinessAnalytics: React.FC = () => {
                 </AnimatedButton>
               </div>
             </motion.div>
-
-            {/* Phase 2: Delivery Partner Integration */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.3, duration: 0.4 }}
-              whileHover={{ 
-                scale: 1.02,
-                boxShadow: "0 0 30px rgba(59, 130, 246, 0.2)",
-                borderColor: "rgba(59, 130, 246, 0.5)"
-              }}
-              className="bg-gradient-to-br from-gray-900/50 to-black/50 backdrop-blur-sm rounded-2xl p-8 border border-white/10 cursor-pointer"
-              onClick={() => navigate('/implementation/phase-two')}
-            >
-              <div className="flex items-center mb-4">
-                <motion.div
-                  whileHover={{ scale: 1.1, rotate: 10 }}
-                  transition={{ type: "spring", stiffness: 200 }}
-                  className="text-4xl mr-4"
-                >
-                  🚚
-                </motion.div>
-                <h3 className="text-2xl font-bold text-white">Phase 2: Delivery Partner Integration</h3>
-              </div>
-              <motion.ul className="space-y-4 text-white/80">
-                <motion.li
-                  initial={{ opacity: 0, x: -20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="flex items-start space-x-3"
-                >
-                  <span className="text-primary text-xl">•</span>
-                  <span>Partner with major delivery services for last-mile drone delivery integration</span>
-                </motion.li>
-                <motion.li
-                  initial={{ opacity: 0, x: -20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.5 }}
-                  className="flex items-start space-x-3"
-                >
-                  <span className="text-primary text-xl">•</span>
-                  <span>Establish regional drone delivery hubs and charging infrastructure</span>
-                </motion.li>
-                <motion.li
-                  initial={{ opacity: 0, x: -20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.6 }}
-                  className="flex items-start space-x-3"
-                >
-                  <span className="text-primary text-xl">•</span>
-                  <span>Implement automated delivery scheduling and tracking systems</span>
-                </motion.li>
-              </motion.ul>
-              <div className="mt-4 flex justify-end">
-                <AnimatedButton
-                  className="bg-white/10 hover:bg-white/20 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate('/implementation/phase-two');
-                  }}
-                >
-                  Learn More →
-                </AnimatedButton>
-              </div>
-            </motion.div>
-
-            {/* Phase 3: Nationwide Expansion */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.4, duration: 0.4 }}
-              whileHover={{ 
-                scale: 1.02,
-                boxShadow: "0 0 30px rgba(59, 130, 246, 0.2)",
-                borderColor: "rgba(59, 130, 246, 0.5)"
-              }}
-              className="bg-gradient-to-br from-gray-900/50 to-black/50 backdrop-blur-sm rounded-2xl p-8 border border-white/10 cursor-pointer"
-              onClick={() => navigate('/implementation/phase-three')}
-            >
-              <div className="flex items-center mb-4">
-                <motion.div
-                  whileHover={{ scale: 1.1, rotate: 10 }}
-                  transition={{ type: "spring", stiffness: 200 }}
-                  className="text-4xl mr-4"
-                >
-                  📬
-                </motion.div>
-                <h3 className="text-2xl font-bold text-white">Phase 3: Nationwide Expansion</h3>
-              </div>
-              <motion.ul className="space-y-4 text-white/80">
-                <motion.li
-                  initial={{ opacity: 0, x: -20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.5 }}
-                  className="flex items-start space-x-3"
-                >
-                  <span className="text-primary text-xl">•</span>
-                  <span>Integrate with postal services for comprehensive coverage</span>
-                </motion.li>
-                <motion.li
-                  initial={{ opacity: 0, x: -20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.6 }}
-                  className="flex items-start space-x-3"
-                >
-                  <span className="text-primary text-xl">•</span>
-                  <span>Establish rural and urban delivery networks</span>
-                </motion.li>
-                <motion.li
-                  initial={{ opacity: 0, x: -20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.7 }}
-                  className="flex items-start space-x-3"
-                >
-                  <span className="text-primary text-xl">•</span>
-                  <span>Deploy nationwide infrastructure and support systems</span>
-                </motion.li>
-              </motion.ul>
-              <div className="mt-4 flex justify-end">
-                <AnimatedButton
-                  className="bg-white/10 hover:bg-white/20 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate('/implementation/phase-three');
-                  }}
-                >
-                  Learn More →
-                </AnimatedButton>
-              </div>
-            </motion.div>
           </div>
 
           <motion.div
@@ -877,7 +656,7 @@ const BusinessAnalytics: React.FC = () => {
             transition={{ delay: 0.5, duration: 0.3 }}
             className="text-center text-white/60 max-w-2xl mx-auto"
           >
-            <p>Our phased implementation approach ensures systematic expansion while maintaining service quality and safety standards across all partner networks.</p>
+            <p>Our implementation strategy focuses on building strong partnerships with drone manufacturers to ensure seamless integration and safety standards across all operations.</p>
           </motion.div>
         </AnimatedSection>
       </div>
