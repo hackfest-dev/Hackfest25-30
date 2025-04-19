@@ -4,7 +4,6 @@ import Cursor from './components/Cursor';
 import Hero from './components/Hero';
 import ProblemStatement from './components/sections/ProblemStatement';
 import Solutions from './components/sections/Solutions';
-import PerformanceMatrix from './components/sections/PerformanceMatrix';
 import BusinessAnalytics from './components/sections/BusinessAnalytics';
 import Comparison from './components/sections/Comparison';
 import LoadingAnimation from './components/LoadingAnimation';
@@ -41,10 +40,6 @@ const MainContent = () => {
           <Solutions />
         </AnimatedPage>
       </div>
-      
-      <AnimatedPage showParticles={false} showParallax={true}>
-        <PerformanceMatrix />
-      </AnimatedPage>
       
       <AnimatedPage showParticles={false} showParallax={true}>
         <BusinessAnalytics />

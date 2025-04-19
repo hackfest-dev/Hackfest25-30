@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 
 const ProblemStatement: React.FC = () => {
   return (
@@ -50,17 +51,12 @@ const ProblemStatement: React.FC = () => {
                 <div className="text-5xl font-bold text-primary mb-2 animate-pulse-slow">
                   500%
                 </div>
-                <p className="text-white/70">Expected growth in UAM operations by 2025</p>
+                <p className="text-white/70">
+                  Expected growth in UAM operations by 2035
+                </p>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-sm">
-                  <div className="text-3xl font-bold text-accent mb-2">
-                    ₹15,000 Cr
-                  </div>
-                  <p className="text-sm text-white/70">Potential economic impact</p>
-                </div>
-                
+              <div className="grid grid-cols-1 gap-4">
                 <div className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-sm">
                   <div className="text-3xl font-bold text-secondary mb-2">
                     60%

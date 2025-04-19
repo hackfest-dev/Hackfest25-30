@@ -278,52 +278,6 @@ const BusinessAnalytics: React.FC = () => {
           </div>
         </AnimatedSection>
 
-        <AnimatedSection delay={0.5}>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-24">
-            {[
-              { value: '₹50,000 Cr', label: 'Estimated Market Size by 2025', color: 'text-primary' },
-              { value: '85%', label: 'Cost Reduction for Partners', color: 'text-accent' },
-              { value: '24/7', label: 'Operational Support', color: 'text-secondary' }
-            ].map((stat, index) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ 
-                  delay: 0.1 + index * 0.05,
-                  duration: 0.3,
-                  scale: { type: "spring", stiffness: 200 }
-                }}
-                whileHover={{ 
-                  scale: 1.05,
-                  boxShadow: "0 0 30px rgba(59, 130, 246, 0.2)",
-                  borderColor: "rgba(59, 130, 246, 0.5)"
-                }}
-                className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-center transition-all duration-200"
-              >
-                <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  transition={{ type: "spring", stiffness: 200 }}
-                  className={`text-4xl font-bold ${stat.color} mb-2`}
-                >
-                  {stat.value}
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  whileInView={{ opacity: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.1 + index * 0.05 }}
-                  whileHover={{ color: "#60A5FA" }}
-                  className="text-white/70"
-                >
-                  {stat.label}
-                </motion.div>
-              </motion.div>
-            ))}
-          </div>
-        </AnimatedSection>
-
         <AnimatedSection delay={0.6}>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -707,28 +661,28 @@ const BusinessAnalytics: React.FC = () => {
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="flex items-start space-x-4"
+                  className="flex flex-col space-y-2"
                 >
-                  <span className="text-primary text-xl">•</span>
-                  <span>Subscription-based model</span>
+                  <span className="text-primary font-semibold">Starter – ₹20,000/month</span>
+                  <span className="text-sm text-white/60">Basic geofencing, airspace compliance tools</span>
                 </motion.li>
                 <motion.li
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.4 }}
-                  className="flex items-start space-x-4"
+                  className="flex flex-col space-y-2"
                 >
-                  <span className="text-primary text-xl">•</span>
-                  <span>₹20,000/month per 100 drones</span>
+                  <span className="text-primary font-semibold">Pro – ₹50,000/month</span>
+                  <span className="text-sm text-white/60">Live dashboards, AI-based path optimization, rerouting logic</span>
                 </motion.li>
                 <motion.li
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.5 }}
-                  className="flex items-start space-x-4"
+                  className="flex flex-col space-y-2"
                 >
-                  <span className="text-primary text-xl">•</span>
-                  <span>Scalable pricing tiers</span>
+                  <span className="text-primary font-semibold">Enterprise – ₹1,00,000+/month</span>
+                  <span className="text-sm text-white/60">Custom APIs, predictive analytics, citywide Smart Zone overlays, 24/7 support</span>
                 </motion.li>
               </motion.ul>
             </motion.div>
@@ -761,28 +715,28 @@ const BusinessAnalytics: React.FC = () => {
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="flex items-start space-x-4"
+                  className="flex flex-col space-y-2"
                 >
-                  <span className="text-primary text-xl">•</span>
-                  <span>₹2–₹10 per delivery routed</span>
+                  <span className="text-primary font-semibold">₹2–₹10 per delivery</span>
+                  <span className="text-sm text-white/60">Earn per delivery routed through your system</span>
                 </motion.li>
                 <motion.li
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.4 }}
-                  className="flex items-start space-x-4"
+                  className="flex flex-col space-y-2"
                 >
-                  <span className="text-primary text-xl">•</span>
-                  <span>Partnerships with Swiggy, Zomato</span>
+                  <span className="text-primary font-semibold">Logistics Integration</span>
+                  <span className="text-sm text-white/60">Ideal for Swiggy, Zomato, Dunzo, and other logistics partners</span>
                 </motion.li>
                 <motion.li
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.5 }}
-                  className="flex items-start space-x-4"
+                  className="flex flex-col space-y-2"
                 >
-                  <span className="text-primary text-xl">•</span>
-                  <span>Logistics partner integration</span>
+                  <span className="text-primary font-semibold">Volume-based Revenue</span>
+                  <span className="text-sm text-white/60">Direct revenue from delivery volume</span>
                 </motion.li>
               </motion.ul>
             </motion.div>
@@ -815,28 +769,28 @@ const BusinessAnalytics: React.FC = () => {
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="flex items-start space-x-4"
+                  className="flex flex-col space-y-2"
                 >
-                  <span className="text-primary text-xl">•</span>
-                  <span>Drone traffic heatmaps</span>
+                  <span className="text-primary font-semibold">Advanced Analytics</span>
+                  <span className="text-sm text-white/60">Drone density and traffic heatmaps</span>
                 </motion.li>
                 <motion.li
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.4 }}
-                  className="flex items-start space-x-4"
+                  className="flex flex-col space-y-2"
                 >
-                  <span className="text-primary text-xl">•</span>
-                  <span>Geofence compliance data</span>
+                  <span className="text-primary font-semibold">Real-time Monitoring</span>
+                  <span className="text-sm text-white/60">Zone congestion alerts and analytics</span>
                 </motion.li>
                 <motion.li
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.5 }}
-                  className="flex items-start space-x-4"
+                  className="flex flex-col space-y-2"
                 >
-                  <span className="text-primary text-xl">•</span>
-                  <span>Noise-sensitive zone analytics</span>
+                  <span className="text-primary font-semibold">Target Markets</span>
+                  <span className="text-sm text-white/60">Smart Cities, Urban ESG bodies, and transport regulators</span>
                 </motion.li>
               </motion.ul>
             </motion.div>
