@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fleet Management</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .status-panel {
+            height: 300px;
+            overflow-y: auto;
+        }
+        .drone-marker {
+            background-color: blue;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        .delivery-marker {
+            background-color: red;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        .stats-card {
+            margin-bottom: 15px;
+        }
+        .progress {
+            height: 20px;
+        }
+        .drone-path {
+            stroke: #007bff;
+            stroke-width: 2;
+            stroke-dasharray: 5, 5;
+        }
+        .delivery-path {
+            stroke: #28a745;
+            stroke-width: 2;
+        }
+        .battery-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .battery-high { background-color: #28a745; }
+        .battery-medium { background-color: #ffc107; }
+        .battery-low { background-color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid mt-3">
+        <h1>Fleet Management Dashboard</h1>
+        <div class="row">
+            <div class="col-md-9">
+                <div id="map"></div>
+            </div>
+            <div class="col-md-3">
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Fleet Statistics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="stats"></div>
+                    </div>
+                </div>
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Active Deliveries</h5>
+                    </div>
+                    <div class="card-body status-panel">
+                        <div id="active-deliveries"></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Controls</h5>
+                    </div>
+                    <div class="card-body">
+                        <button id="start-fleet" class="btn btn-primary w-100 mb-2">Start Fleet Operations</button>
+                        <button id="pause-fleet" class="btn btn-warning w-100 mb-2" disabled>Pause Operations</button>
+                        <button id="reset-fleet" class="btn btn-danger w-100">Reset Simulation</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // WebSocket connections
+        let droneSocket = null;
+        let fleetSocket = null;
+        let deliverySocket = null;
+        let wsConnected = false;
+
+        // Initialize WebSocket connections
+        function initializeWebSockets() {
+            const wsBase = `ws://${window.location.host}`;
+            console.log('Initializing WebSocket connections...');
+            
+            function setupWebSocket(path, onMessageHandler, socketRef) {
+                const ws = new WebSocket(`${wsBase}${path}`);
+                
+                ws.onopen = () => {
+                    console.log(`WebSocket connected: ${path}`);
+                    wsConnected = true;
+                    updateConnectionStatus();
+                };
+                
+                ws.onmessage = (event) => {
+                    console.log(`Received message on ${path}:`, event.data);
+                    const data = JSON.parse(event.data);
+                    onMessageHandler(data);
+                };
+                
+                ws.onerror = (error) => {
+                    console.error(`WebSocket error on ${path}:`, error);
+                    wsConnected = false;
+                    updateConnectionStatus();
+                };
+                
+                ws.onclose = () => {
+                    console.log(`WebSocket closed: ${path}`);
+                    wsConnected = false;
+                    updateConnectionStatus();
+                    // Try to reconnect after 5 seconds
+                    setTimeout(() => {
+                        console.log(`Attempting to reconnect: ${path}`);
+                        setupWebSocket(path, onMessageHandler, socketRef);
+                    }, 5000);
+                };
+                
+                return ws;
+            }
+            
+            // Setup each WebSocket connection
+            droneSocket = setupWebSocket('/ws/drone-updates', handleDroneUpdate, 'droneSocket');
+            fleetSocket = setupWebSocket('/ws/fleet-status', handleFleetStatus, 'fleetSocket');
+            deliverySocket = setupWebSocket('/ws/delivery-updates', handleDeliveryUpdate, 'deliverySocket');
+        }
+
+        function updateConnectionStatus() {
+            const startButton = document.getElementById('start-fleet');
+            if (startButton) {
+                startButton.disabled = !wsConnected;
+                if (!wsConnected) {
+                    startButton.textContent = 'Connecting...';
+                } else {
+                    startButton.textContent = 'Start Fleet Operations';
+                }
+            }
+        }
+
+        // Handle WebSocket messages
+        function handleDroneUpdate(data) {
+            console.log('Drone update:', data);
+            if (data.type === 'drone_positions') {
+                updateMap(data.data);
+            }
+        }
+
+        function handleFleetStatus(data) {
+            console.log('Fleet status:', data);
+            if (data.type === 'fleet_status') {
+                updateStats(data.data);
+                updateButtonStates(data.data.stats.is_running);
+            }
+        }
+
+        function handleDeliveryUpdate(data) {
+            console.log('Delivery update:', data);
+            if (data.type === 'delivery_update') {
+                updateActiveDeliveries(data.data);
+            }
+        }
+
+        // Initialize map
+        const map = L.map('map').setView([28.6139, 77.2090], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Store markers and paths
+        const droneMarkers = {};
+        const deliveryMarkers = {};
+        const dronePaths = {};
+        const deliveryPaths = {};
+
+        // Custom drone icon
+        const droneIcon = L.divIcon({
+            className: 'drone-icon',
+            html: '<div style="background-color: #007bff; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
+            iconSize: [16, 16]
+        });
+
+        // Update button states
+        function updateButtonStates(isRunning) {
+            console.log('Updating button states, isRunning:', isRunning);
+            const startButton = document.getElementById('start-fleet');
+            const pauseButton = document.getElementById('pause-fleet');
+            const resetButton = document.getElementById('reset-fleet');
+            
+            if (startButton && pauseButton && resetButton) {
+                startButton.disabled = isRunning;
+                pauseButton.disabled = !isRunning;
+                resetButton.disabled = isRunning;
+            } else {
+                console.error('Could not find one or more control buttons');
+            }
+        }
+
+        // Fleet control functions
+        async function startFleet() {
+            if (!wsConnected) {
+                alert('WebSocket connection not established. Please wait...');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/fleet/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    console.error('Failed to start fleet:', data);
+                    alert(`Failed to start fleet: ${data.detail?.message || data.detail || 'Unknown error'}`);
+                    return;
+                }
+
+                console.log('Fleet started:', data);
+                // Only update button states if start was successful
+                if (data.status === 'started') {
+                    updateButtonStates(true);
+                }
+            } catch (error) {
+                console.error('Error starting fleet:', error);
+                alert(`Error starting fleet: ${error.message}`);
+            }
+        }
+
+        async function pauseFleet() {
+            try {
+                const response = await fetch('/api/fleet/pause', {
+                    method: 'POST',
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    alert(`Failed to pause fleet: ${errorData.detail || 'Unknown error'}`);
+                    return;
+                }
+
+                const data = await response.json();
+                console.log('Fleet paused:', data);
+                updateButtonStates(false);
+            } catch (error) {
+                console.error('Error pausing fleet:', error);
+                alert(`Error pausing fleet: ${error.message}`);
+            }
+        }
+
+        async function resetFleet() {
+            try {
+                const response = await fetch('/api/fleet/reset', {
+                    method: 'POST',
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    alert(`Failed to reset fleet: ${errorData.detail || 'Unknown error'}`);
+                    return;
+                }
+
+                const data = await response.json();
+                console.log('Fleet reset:', data);
+                location.reload();
+            } catch (error) {
+                console.error('Error resetting fleet:', error);
+                alert(`Error resetting fleet: ${error.message}`);
+            }
+        }
+
+        // Event listeners
+        document.getElementById('start-fleet').addEventListener('click', startFleet);
+        document.getElementById('pause-fleet').addEventListener('click', pauseFleet);
+        document.getElementById('reset-fleet').addEventListener('click', resetFleet);
+
+        // Initialize WebSockets
+        initializeWebSockets();
+
+        // Update map with drone and delivery positions
+        function updateMap(status) {
+            // Update drone markers and paths
+            Object.entries(status.drones).forEach(([droneId, drone]) => {
+                const position = [drone.location.lat, drone.location.lon];
+                
+                // Update or create drone marker
+                if (droneMarkers[droneId]) {
+                    droneMarkers[droneId].setLatLng(position);
+                } else {
+                    droneMarkers[droneId] = L.marker(position, {icon: droneIcon}).addTo(map);
+                }
+
+                // Update drone path
+                if (drone.current_delivery) {
+                    const delivery = status.deliveries[drone.current_delivery];
+                    if (delivery) {
+                        const pickup = [delivery.pickup.lat, delivery.pickup.lon];
+                        const dropoff = [delivery.dropoff.lat, delivery.dropoff.lon];
+                        
+                        if (!dronePaths[droneId]) {
+                            dronePaths[droneId] = L.polyline([position, pickup, dropoff], {
+                                color: '#007bff',
+                                weight: 2,
+                                dashArray: '5, 5'
+                            }).addTo(map);
+                        } else {
+                            dronePaths[droneId].setLatLngs([position, pickup, dropoff]);
+                        }
+                    }
+                }
+
+                // Update popup
+                droneMarkers[droneId].bindPopup(`
+                    <strong>Drone ${droneId}</strong><br>
+                    Status: ${drone.status}<br>
+                    Battery: ${getBatteryIndicator(drone.battery_level)} ${drone.battery_level.toFixed(1)}%<br>
+                    Completed: ${drone.completed_deliveries}<br>
+                    Current Delivery: ${drone.current_delivery || 'None'}
+                `);
+            });
+
+            // Update delivery markers and paths
+            Object.entries(status.deliveries).forEach(([deliveryId, delivery]) => {
+                if (delivery.status !== 'completed') {
+                    // Update pickup marker
+                    const pickupId = `pickup_${deliveryId}`;
+                    const pickupPos = [delivery.pickup.lat, delivery.pickup.lon];
+                    if (!deliveryMarkers[pickupId]) {
+                        deliveryMarkers[pickupId] = L.circleMarker(pickupPos, {
+                            radius: 6,
+                            fillColor: '#ff0000',
+                            color: '#fff',
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        }).addTo(map);
+                    }
+                    deliveryMarkers[pickupId].bindPopup(`
+                        <strong>Delivery ${deliveryId}</strong><br>
+                        Type: Pickup<br>
+                        Status: ${delivery.status}<br>
+                        Assigned to: ${delivery.assigned_drone || 'None'}
+                    `);
+
+                    // Update dropoff marker
+                    const dropoffId = `dropoff_${deliveryId}`;
+                    const dropoffPos = [delivery.dropoff.lat, delivery.dropoff.lon];
+                    if (!deliveryMarkers[dropoffId]) {
+                        deliveryMarkers[dropoffId] = L.circleMarker(dropoffPos, {
+                            radius: 6,
+                            fillColor: '#28a745',
+                            color: '#fff',
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        }).addTo(map);
+                    }
+                    deliveryMarkers[dropoffId].bindPopup(`
+                        <strong>Delivery ${deliveryId}</strong><br>
+                        Type: Dropoff<br>
+                        Status: ${delivery.status}<br>
+                        Assigned to: ${delivery.assigned_drone || 'None'}
+                    `);
+
+                    // Update delivery path
+                    if (!deliveryPaths[deliveryId]) {
+                        deliveryPaths[deliveryId] = L.polyline([pickupPos, dropoffPos], {
+                            color: '#28a745',
+                            weight: 2
+                        }).addTo(map);
+                    }
+                }
+            });
+        }
+
+        function getBatteryIndicator(level) {
+            let className = 'battery-low';
+            if (level > 60) className = 'battery-high';
+            else if (level > 30) className = 'battery-medium';
+            return `<span class="battery-indicator ${className}"></span>`;
+        }
+
+        // Update statistics panel with more detailed information
+        function updateStats(status) {
+            const stats = status.stats;
+            const completionRate = (stats.completed_deliveries / stats.total_deliveries) * 100;
+            
+            const statsHtml = `
+                <div class="stats-card">
+                    <h6>Delivery Progress</h6>
+                    <div class="progress">
+                        <div class="progress-bar" role="progressbar" style="width: ${completionRate}%">
+                            ${completionRate.toFixed(1)}%
+                        </div>
+                    </div>
+                    <small>${stats.completed_deliveries} / ${stats.total_deliveries} completed</small>
+                </div>
+                <div class="stats-card">
+                    <h6>Fleet Status</h6>
+                    <p>Active Drones: ${stats.active_drones}</p>
+                    <p>Charging Drones: ${stats.charging_drones}</p>
+                    <p>Idle Drones: ${stats.total_drones - stats.active_drones - stats.charging_drones}</p>
+                </div>
+                <div class="stats-card">
+                    <h6>Performance Metrics</h6>
+                    <p>Average Delivery Time: ${stats.avg_delivery_time?.toFixed(1) || 'N/A'} min</p>
+                    <p>Average Battery Usage: ${stats.avg_battery_usage?.toFixed(1) || 'N/A'}%</p>
+                    <p>Total Distance Traveled: ${(stats.total_distance / 1000).toFixed(1)} km</p>
+                </div>
+            `;
+            document.getElementById('stats').innerHTML = statsHtml;
+        }
+
+        // Update active deliveries panel with more details
+        function updateActiveDeliveries(status) {
+            const activeDeliveries = Object.entries(status.deliveries)
+                .filter(([_, delivery]) => delivery.status !== 'completed')
+                .map(([deliveryId, delivery]) => `
+                    <div class="card mb-2">
+                        <div class="card-body p-2">
+                            <h6 class="card-title">Delivery ${deliveryId}</h6>
+                            <p class="card-text">
+                                Status: ${delivery.status}<br>
+                                Assigned to: ${delivery.assigned_drone || 'Unassigned'}<br>
+                                Priority: ${delivery.priority}<br>
+                                Weight: ${delivery.weight} kg
+                            </p>
+                        </div>
+                    </div>
+                `).join('');
+            document.getElementById('active-deliveries').innerHTML = activeDeliveries;
+        }
+    </script>
+</body>
+</html> 
