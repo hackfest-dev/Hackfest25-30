@@ -1,12 +1,15 @@
 from typing import Dict, List, Any, Optional
 import uuid
 from datetime import datetime, timedelta
+import random
 from backend.models.drone_simulation import Drone, Delivery, Simulation
 from backend.services.database_service import DatabaseService
+from backend.services.dataset_service import DatasetService
 
 class DroneSimulation:
     def __init__(self):
         self.db_service = DatabaseService()
+        self.dataset_service = DatasetService()
 
     def create_simulation(self, num_drones: int, num_deliveries: int) -> Dict[str, Any]:
         """Create a new simulation with the specified number of drones and deliveries."""
@@ -19,30 +22,49 @@ class DroneSimulation:
                 created_at=datetime.now()
             )
             
-            # Create drones
+            # Get delivery points to determine the operational area
+            delivery_points = self.dataset_service.get_delivery_points()
+            if not delivery_points:
+                raise ValueError("No delivery points available")
+            
+            # Calculate the center and spread of the operational area
+            lats = [point['latitude'] for point in delivery_points]
+            lons = [point['longitude'] for point in delivery_points]
+            center_lat = sum(lats) / len(lats)
+            center_lon = sum(lons) / len(lons)
+            spread_lat = (max(lats) - min(lats)) / 4  # Use 1/4 of the total spread
+            spread_lon = (max(lons) - min(lons)) / 4
+            
+            # Create drones spread around the operational area
             drones = []
             for i in range(num_drones):
+                # Generate random position within the spread area
+                drone_lat = center_lat + (random.random() - 0.5) * spread_lat
+                drone_lon = center_lon + (random.random() - 0.5) * spread_lon
+                
                 drone = Drone(
                     id=f"DRONE-{i+1}",
                     simulation_id=simulation_id,
                     status="Available",
                     battery=100,
-                    latitude=12.9716,  # Default to Bangalore center
-                    longitude=77.5946,
+                    latitude=drone_lat,
+                    longitude=drone_lon,
                     altitude=0.0
                 )
                 drones.append(drone)
             
-            # Create deliveries
+            # Create deliveries from the dataset
             deliveries = []
-            for i in range(num_deliveries):
+            selected_points = random.sample(delivery_points, min(num_deliveries, len(delivery_points)))
+            for i, point in enumerate(selected_points):
                 delivery = Delivery(
                     id=f"DELIVERY-{i+1}",
                     simulation_id=simulation_id,
-                    pickup_lat=12.9716,  # Default to Bangalore center
-                    pickup_lon=77.5946,
-                    drop_lat=12.9716,
-                    drop_lon=77.5946,
+                    pickup_lat=point['latitude'],
+                    pickup_lon=point['longitude'],
+                    # Generate dropoff point nearby
+                    drop_lat=point['latitude'] + (random.random() - 0.5) * 0.02,
+                    drop_lon=point['longitude'] + (random.random() - 0.5) * 0.02,
                     status="Pending"
                 )
                 deliveries.append(delivery)
@@ -135,4 +157,4 @@ class DroneSimulation:
                 "status": delivery.status
             }
         except Exception as e:
-            raise ValueError(f"Error updating delivery status: {str(e)}") 
+            raise ValueError(f"Error updating delivery status: {str(e)}")

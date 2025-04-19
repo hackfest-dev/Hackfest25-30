@@ -243,7 +243,17 @@ class FleetManager:
             await manager.broadcast_delivery_update({
                 "delivery_id": delivery_id,
                 "status": delivery.status,
-                "assigned_drone": drone_id
+                "assigned_drone": drone_id,
+                "pickup": {
+                    "lat": delivery.pickup.lat,
+                    "lon": delivery.pickup.lon,
+                    "altitude": delivery.pickup.altitude
+                },
+                "dropoff": {
+                    "lat": delivery.dropoff.lat,
+                    "lon": delivery.dropoff.lon,
+                    "altitude": delivery.dropoff.altitude
+                }
             })
             
             # Calculate route to pickup
@@ -281,7 +291,18 @@ class FleetManager:
             delivery.status = 'picked_up'
             await manager.broadcast_delivery_update({
                 "delivery_id": delivery_id,
-                "status": delivery.status
+                "status": delivery.status,
+                "assigned_drone": drone_id,
+                "pickup": {
+                    "lat": delivery.pickup.lat,
+                    "lon": delivery.pickup.lon,
+                    "altitude": delivery.pickup.altitude
+                },
+                "dropoff": {
+                    "lat": delivery.dropoff.lat,
+                    "lon": delivery.dropoff.lon,
+                    "altitude": delivery.dropoff.altitude
+                }
             })
             
             # Calculate route to dropoff
@@ -336,7 +357,18 @@ class FleetManager:
             await manager.broadcast_delivery_update({
                 "delivery_id": delivery_id,
                 "status": delivery.status,
-                "completion_time": delivery.completion_time.isoformat()
+                "completion_time": delivery.completion_time.isoformat(),
+                "assigned_drone": None,
+                "pickup": {
+                    "lat": delivery.pickup.lat,
+                    "lon": delivery.pickup.lon,
+                    "altitude": delivery.pickup.altitude
+                },
+                "dropoff": {
+                    "lat": delivery.dropoff.lat,
+                    "lon": delivery.dropoff.lon,
+                    "altitude": delivery.dropoff.altitude
+                }
             })
             
             logger.info(f"Completed delivery {delivery_id} with drone {drone_id}")
@@ -361,7 +393,17 @@ class FleetManager:
             await manager.broadcast_delivery_update({
                 "delivery_id": delivery_id,
                 "status": 'pending',
-                "assigned_drone": None
+                "assigned_drone": None,
+                "pickup": {
+                    "lat": delivery.pickup.lat,
+                    "lon": delivery.pickup.lon,
+                    "altitude": delivery.pickup.altitude
+                },
+                "dropoff": {
+                    "lat": delivery.dropoff.lat,
+                    "lon": delivery.dropoff.lon,
+                    "altitude": delivery.dropoff.altitude
+                }
             })
             raise
 

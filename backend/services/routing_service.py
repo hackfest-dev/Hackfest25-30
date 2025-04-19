@@ -507,6 +507,37 @@ class RoutingService:
             total_time = (route.end_time - route.start_time).total_seconds()
             print(f"Total time: {total_time} seconds")
             
+            # Create segments from consecutive waypoints
+            segments = []
+            for i in range(len(route.waypoints) - 1):
+                start_wp = route.waypoints[i]
+                end_wp = route.waypoints[i + 1]
+                
+                # Calculate segment metrics
+                distance = self._calculate_distance(
+                    {"lat": start_wp.lat, "lon": start_wp.lon},
+                    {"lat": end_wp.lat, "lon": end_wp.lon}
+                )
+                
+                time_diff = (end_wp.timestamp - start_wp.timestamp).total_seconds() / 3600  # Convert to hours
+                energy = self.calculate_energy(distance / 1000, start_wp.altitude, end_wp.altitude)  # Convert distance to km
+                
+                segments.append({
+                    "start": {
+                        "lat": start_wp.lat,
+                        "lon": start_wp.lon,
+                        "altitude": start_wp.altitude
+                    },
+                    "end": {
+                        "lat": end_wp.lat,
+                        "lon": end_wp.lon,
+                        "altitude": end_wp.altitude
+                    },
+                    "distance": distance,
+                    "time": time_diff,
+                    "energy_consumption": energy
+                })
+            
             waypoints_list = [
                 {
                     "lat": wp.lat,
@@ -516,16 +547,19 @@ class RoutingService:
                 }
                 for wp in route.waypoints
             ]
-            print(f"Converted {len(waypoints_list)} waypoints")
+            print(f"Converted {len(waypoints_list)} waypoints and {len(segments)} segments")
             
             route_dict = {
                 "drone_id": route.drone_id,
                 "waypoints": waypoints_list,
+                "segments": segments,
                 "start_time": route.start_time.isoformat(),
                 "end_time": route.end_time.isoformat(),
                 "velocity": route.velocity,
                 "heading": route.heading,
-                "total_time": total_time
+                "total_time": total_time,
+                "total_distance": sum(seg["distance"] for seg in segments),
+                "total_energy": sum(seg["energy_consumption"] for seg in segments)
             }
             print("Successfully created route dictionary")
             return route_dict

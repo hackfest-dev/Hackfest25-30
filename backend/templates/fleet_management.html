@@ -942,42 +942,53 @@
             if (!data) return;
             console.log('Updating delivery visualization with data:', data);
 
-            const deliveries = data.deliveries || (Array.isArray(data) ? data : [data]);
+            let deliveriesToProcess = [];
+            
+            // Handle different delivery update formats
+            if (data.deliveries) {
+                // Bulk update format
+                deliveriesToProcess = Object.entries(data.deliveries).map(([id, delivery]) => ({
+                    ...delivery,
+                    id: id
+                }));
+            } else if (Array.isArray(data)) {
+                // Array format
+                deliveriesToProcess = data;
+            } else {
+                // Single delivery update format
+                deliveriesToProcess = [{
+                    ...data,
+                    id: data.delivery_id || data.id
+                }];
+            }
             
             // Process and update each delivery
-            deliveries.forEach(delivery => {
+            deliveriesToProcess.forEach(delivery => {
                 const deliveryId = delivery.id || delivery.delivery_id;
+                if (!deliveryId) {
+                    console.warn('Delivery update missing ID:', delivery);
+                    return;
+                }
                 
                 // Store the delivery data
                 state.data.deliveries[deliveryId] = delivery;
 
                 // Skip visualization if we don't have location data yet
-                if (!delivery.pickup_location && !delivery.dropoff_location && 
-                    !delivery.pickup && !delivery.dropoff) {
+                if (!delivery.pickup && !delivery.dropoff) {
                     console.log(`Delivery ${deliveryId} location data not available yet`);
                     return;
                 }
 
-                const pickupLoc = delivery.pickup_location || delivery.pickup || {};
-                const dropoffLoc = delivery.dropoff_location || delivery.dropoff || {};
+                const pickupLoc = delivery.pickup || {};
+                const dropoffLoc = delivery.dropoff || {};
 
-                if (!pickupLoc.lat && !pickupLoc.latitude || !dropoffLoc.lat && !dropoffLoc.latitude) {
+                if (!pickupLoc.lat || !dropoffLoc.lat) {
                     console.log(`Waiting for complete location data for delivery ${deliveryId}`);
                     return;
                 }
 
                 if (delivery.status !== 'completed') {
-                    updateDeliveryMarkers(deliveryId, {
-                        ...delivery,
-                        pickup: {
-                            lat: pickupLoc.lat || pickupLoc.latitude,
-                            lon: pickupLoc.lon || pickupLoc.longitude
-                        },
-                        dropoff: {
-                            lat: dropoffLoc.lat || dropoffLoc.latitude,
-                            lon: dropoffLoc.lon || dropoffLoc.longitude
-                        }
-                    });
+                    updateDeliveryMarkers(deliveryId, delivery);
                     updateDeliveryPath(deliveryId, delivery);
                 } else {
                     removeDeliveryVisualization(deliveryId);
@@ -985,7 +996,7 @@
             });
 
             // Update active deliveries panel
-            updateActiveDeliveriesPanel(deliveries);
+            updateActiveDeliveriesPanel(state.data.deliveries);
         }
 
         function updateDeliveryMarkers(deliveryId, delivery) {
@@ -999,6 +1010,9 @@
                 markers.deliveries[pickupId] = L.marker(pickupPos, { icon: icons.pickup })
                     .addTo(map)
                     .bindPopup(createDeliveryPopup(deliveryId, delivery, 'Pickup'));
+            } else {
+                markers.deliveries[pickupId].setLatLng(pickupPos);
+                markers.deliveries[pickupId].setPopupContent(createDeliveryPopup(deliveryId, delivery, 'Pickup'));
             }
 
             // Create or update dropoff marker
@@ -1006,6 +1020,9 @@
                 markers.deliveries[dropoffId] = L.marker(dropoffPos, { icon: icons.dropoff })
                     .addTo(map)
                     .bindPopup(createDeliveryPopup(deliveryId, delivery, 'Dropoff'));
+            } else {
+                markers.deliveries[dropoffId].setLatLng(dropoffPos);
+                markers.deliveries[dropoffId].setPopupContent(createDeliveryPopup(deliveryId, delivery, 'Dropoff'));
             }
         }
 
