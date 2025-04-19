@@ -3,8 +3,6 @@ import * as THREE from 'three';
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Button, Box, Typography } from '@mui/material';
-import FleetApiClient from '../api/fleetApi';
-import FleetWebSocketClient from '../api/fleetWebSocket';
 
 // Add these type definitions at the top of the file
 interface FleetStatus {
@@ -46,7 +44,9 @@ class Drone {
   speed: number;
   battery: number;
   maxBattery: number;
-  state: 'idle' | 'takingOff' | 'movingToPickup' | 'descendingToPickup' | 'pickingUp' | 'ascendingFromPickup' | 'movingToDelivery' | 'descendingToDelivery' | 'dropping' | 'ascendingFromDelivery' | 'returningToBase';
+  state: 'idle' | 'takingOff' | 'movingToPickup' | 'descendingToPickup' | 'pickingUp' | 
+         'ascendingFromPickup' | 'movingToDelivery' | 'descendingToDelivery' | 'dropping' | 
+         'ascendingFromDelivery' | 'returningToBase' | 'descendingToBase';
   currentAltitude: number;
   cruisingAltitude: number;
   landingAltitude: number;
@@ -63,6 +63,15 @@ class Drone {
   deliveryHeight: number;
   isDescending: boolean;
   isAscending: boolean;
+  collisionRadius: number;
+  avoidanceRadius: number;
+  reroutePoints: THREE.Vector3[];
+  currentRerouteIndex: number;
+  lastCollisionCheck: number;
+  collisionCheckInterval: number;
+  collisionsAvoided: number;
+  lastPosition: THREE.Vector3;
+  collisionDetails: Array<{ timestamp: number; otherDroneId: number; distance: number }>;
 
   constructor(position: THREE.Vector3, id: number) {
     this.id = id;
@@ -74,9 +83,9 @@ class Drone {
     this.battery = 100;
     this.maxBattery = 100;
     this.state = 'idle';
-    this.currentAltitude = 5;
+    this.currentAltitude = 2;
     this.cruisingAltitude = 50;
-    this.landingAltitude = 5;
+    this.landingAltitude = 2;
     this.verticalSpeed = 2;
     this.hasPackage = false;
     this.energyConsumption = 0.1;
@@ -84,6 +93,15 @@ class Drone {
     this.deliveryHeight = 2;
     this.isDescending = false;
     this.isAscending = false;
+    this.collisionRadius = 10;
+    this.avoidanceRadius = 20;
+    this.reroutePoints = [];
+    this.currentRerouteIndex = 0;
+    this.lastCollisionCheck = 0;
+    this.collisionCheckInterval = 1000;
+    this.collisionsAvoided = 0;
+    this.lastPosition = position.clone();
+    this.collisionDetails = [];
 
     // Create drone mesh
     this.mesh = new THREE.Group();
@@ -97,8 +115,7 @@ class Drone {
     // Propellers
     const propellerGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 32);
     const propellerMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
-
-    // Create 4 propellers
+    
     const propellerPositions = [
       new THREE.Vector3(1, 0.3, 1),
       new THREE.Vector3(-1, 0.3, 1),
@@ -165,6 +182,186 @@ class Drone {
     this.mesh.position.y = this.currentAltitude;
   }
 
+  update(drones: Drone[]) {
+    if (this.state === 'idle') return;
+
+    // Update battery
+    this.battery = Math.max(0, this.battery - this.energyConsumption * 0.5);
+
+    // Check for collisions first
+    const collidingDrone = this.checkForCollisions(drones);
+    if (collidingDrone) {
+      if (this.reroutePoints.length === 0) {
+        this.reroutePoints = this.calculateAvoidancePath(collidingDrone);
+        this.currentRerouteIndex = 0;
+      }
+    }
+
+    // Basic logging
+    console.log(`Drone ${this.id}: ${this.state} at (${this.mesh.position.x.toFixed(1)}, ${this.mesh.position.y.toFixed(1)}, ${this.mesh.position.z.toFixed(1)})`);
+
+    // Handle rerouting if needed
+    if (this.reroutePoints.length > 0 && this.currentRerouteIndex < this.reroutePoints.length) {
+      const targetPoint = this.reroutePoints[this.currentRerouteIndex];
+      const dx = targetPoint.x - this.mesh.position.x;
+      const dy = targetPoint.y - this.mesh.position.y;
+      const dz = targetPoint.z - this.mesh.position.z;
+      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+      if (distance < 0.1) {
+        this.currentRerouteIndex++;
+        if (this.currentRerouteIndex >= this.reroutePoints.length) {
+          this.reroutePoints = [];
+          this.currentRerouteIndex = 0;
+        }
+      } else {
+        const moveX = (dx / distance) * Math.min(this.speed, distance);
+        const moveY = (dy / distance) * Math.min(this.speed, distance);
+        const moveZ = (dz / distance) * Math.min(this.speed, distance);
+        
+        this.mesh.position.x += moveX;
+        this.mesh.position.y += moveY;
+        this.mesh.position.z += moveZ;
+        this.mesh.lookAt(targetPoint);
+        return;
+      }
+    }
+
+    // Normal movement logic
+    switch (this.state) {
+      case 'takingOff':
+        if (this.currentAltitude < this.cruisingAltitude) {
+          this.currentAltitude += this.verticalSpeed;
+          this.mesh.position.y = this.currentAltitude;
+        } else {
+          this.state = 'movingToPickup';
+        }
+        break;
+
+      case 'movingToPickup':
+        if (this.pickupPoint) {
+          const dx = this.pickupPoint.x - this.mesh.position.x;
+          const dz = this.pickupPoint.z - this.mesh.position.z;
+          const distance = Math.sqrt(dx * dx + dz * dz);
+
+          if (distance < 0.1) {
+            this.mesh.position.x = this.pickupPoint.x;
+            this.mesh.position.z = this.pickupPoint.z;
+            this.state = 'descendingToPickup';
+          } else {
+            const moveX = (dx / distance) * Math.min(this.speed, distance);
+            const moveZ = (dz / distance) * Math.min(this.speed, distance);
+            
+            this.mesh.position.x += moveX;
+            this.mesh.position.z += moveZ;
+            this.mesh.position.y = this.currentAltitude;
+            this.mesh.lookAt(this.pickupPoint);
+          }
+        }
+        break;
+
+      case 'descendingToPickup':
+        if (this.currentAltitude > this.pickupHeight) {
+          this.currentAltitude = Math.max(this.pickupHeight, this.currentAltitude - this.verticalSpeed);
+          this.mesh.position.y = this.currentAltitude;
+        } else {
+          this.state = 'pickingUp';
+          setTimeout(() => {
+            this.hasPackage = true;
+            this.state = 'ascendingFromPickup';
+          }, 2000);
+        }
+        break;
+
+      case 'ascendingFromPickup':
+        if (this.currentAltitude < this.cruisingAltitude) {
+          this.currentAltitude += this.verticalSpeed;
+          this.mesh.position.y = this.currentAltitude;
+        } else {
+          this.state = 'movingToDelivery';
+        }
+        break;
+
+      case 'movingToDelivery':
+        if (this.deliveryPoint) {
+          const dx = this.deliveryPoint.x - this.mesh.position.x;
+          const dz = this.deliveryPoint.z - this.mesh.position.z;
+          const distance = Math.sqrt(dx * dx + dz * dz);
+
+          if (distance < 0.1) {
+            this.mesh.position.x = this.deliveryPoint.x;
+            this.mesh.position.z = this.deliveryPoint.z;
+            this.state = 'descendingToDelivery';
+          } else {
+            const moveX = (dx / distance) * Math.min(this.speed, distance);
+            const moveZ = (dz / distance) * Math.min(this.speed, distance);
+            
+            this.mesh.position.x += moveX;
+            this.mesh.position.z += moveZ;
+            this.mesh.position.y = this.currentAltitude;
+            this.mesh.lookAt(this.deliveryPoint);
+          }
+        }
+        break;
+
+      case 'descendingToDelivery':
+        if (this.currentAltitude > this.deliveryHeight) {
+          this.currentAltitude = Math.max(this.deliveryHeight, this.currentAltitude - this.verticalSpeed);
+          this.mesh.position.y = this.currentAltitude;
+        } else {
+          this.state = 'dropping';
+          setTimeout(() => {
+            this.hasPackage = false;
+            this.state = 'ascendingFromDelivery';
+          }, 2000);
+        }
+        break;
+
+      case 'ascendingFromDelivery':
+        if (this.currentAltitude < this.cruisingAltitude) {
+          this.currentAltitude += this.verticalSpeed;
+          this.mesh.position.y = this.currentAltitude;
+        } else {
+          this.state = 'returningToBase';
+        }
+        break;
+
+      case 'returningToBase':
+        const bx = this.basePosition.x - this.mesh.position.x;
+        const bz = this.basePosition.z - this.mesh.position.z;
+        const baseDistance = Math.sqrt(bx * bx + bz * bz);
+
+        if (baseDistance < 0.1) {
+          this.mesh.position.x = this.basePosition.x;
+          this.mesh.position.z = this.basePosition.z;
+          this.state = 'descendingToBase';
+        } else {
+          const moveX = (bx / baseDistance) * Math.min(this.speed, baseDistance);
+          const moveZ = (bz / baseDistance) * Math.min(this.speed, baseDistance);
+          
+          this.mesh.position.x += moveX;
+          this.mesh.position.z += moveZ;
+          this.mesh.position.y = this.currentAltitude;
+          this.mesh.lookAt(this.basePosition);
+        }
+        break;
+
+      case 'descendingToBase':
+        if (this.currentAltitude > this.landingAltitude) {
+          this.currentAltitude = Math.max(this.landingAltitude, this.currentAltitude - this.verticalSpeed);
+          this.mesh.position.y = this.currentAltitude;
+        } else {
+          this.state = 'idle';
+          this.battery = this.maxBattery;
+        }
+        break;
+    }
+
+    // Update visual indicators
+    this.updateStatusText();
+    this.updateColor();
+  }
+
   updateStatusText() {
     const canvas = document.createElement('canvas');
     canvas.width = 128;
@@ -196,10 +393,15 @@ class Drone {
       case 'movingToPickup':
       case 'movingToDelivery':
       case 'returningToBase':
-        this.bodyMaterial.color.set(0x0000ff); // Blue
+        if (this.reroutePoints.length > 0) {
+          this.bodyMaterial.color.set(0xffa500); // Orange for rerouting
+        } else {
+          this.bodyMaterial.color.set(0x0000ff); // Blue
+        }
         break;
       case 'descendingToPickup':
       case 'descendingToDelivery':
+      case 'descendingToBase':
         this.bodyMaterial.color.set(0xff0000); // Red
         break;
       case 'pickingUp':
@@ -257,164 +459,11 @@ class Drone {
     return waypoints;
   }
 
-  update() {
-    if (this.state === 'idle') return;
-
-    // Update battery with adjusted consumption rate
-    this.battery = Math.max(0, this.battery - this.energyConsumption * 0.5); // Reduced energy consumption
-
-    console.log(`Drone ${this.id} state: ${this.state}, altitude: ${this.currentAltitude}, position: ${this.mesh.position.x}, ${this.mesh.position.y}, ${this.mesh.position.z}`);
-
-    switch (this.state) {
-      case 'takingOff':
-        if (this.currentAltitude < this.cruisingAltitude) {
-          this.currentAltitude += this.verticalSpeed;
-          this.mesh.position.y = this.currentAltitude;
-        } else {
-          this.state = 'movingToPickup';
-          console.log(`Drone ${this.id} reached cruising altitude, moving to pickup`);
-        }
-        break;
-
-      case 'movingToPickup':
-        if (this.pickupPoint) {
-          const direction = new THREE.Vector3(
-            this.pickupPoint.x - this.mesh.position.x,
-            0,
-            this.pickupPoint.z - this.mesh.position.z
-          );
-          const distance = direction.length();
-
-          if (distance < 20) {
-            console.log(`Drone ${this.id} starting descent to pickup`);
-            this.state = 'descendingToPickup';
-          } else {
-            direction.normalize();
-            const moveDistance = Math.min(distance, this.speed);
-            
-            this.mesh.position.x += direction.x * moveDistance;
-            this.mesh.position.z += direction.z * moveDistance;
-            this.mesh.position.y = this.currentAltitude;
-            
-            // Smooth rotation towards target
-            const targetRotation = new THREE.Quaternion();
-            targetRotation.setFromRotationMatrix(
-              new THREE.Matrix4().lookAt(
-                this.mesh.position,
-                this.pickupPoint,
-                new THREE.Vector3(0, 1, 0)
-              )
-            );
-            this.mesh.quaternion.slerp(targetRotation, 0.1);
-          }
-        }
-        break;
-
-      case 'descendingToPickup':
-        console.log(`Drone ${this.id} descending, current altitude: ${this.currentAltitude}, target: ${this.pickupHeight}`);
-        if (this.currentAltitude > this.pickupHeight) {
-          this.currentAltitude = Math.max(this.pickupHeight, this.currentAltitude - this.verticalSpeed);
-          this.mesh.position.y = this.currentAltitude;
-        } else {
-          console.log(`Drone ${this.id} reached pickup height`);
-          this.state = 'pickingUp';
-          setTimeout(() => {
-            this.hasPackage = true;
-            this.state = 'ascendingFromPickup';
-            console.log(`Drone ${this.id} picked up package, ascending`);
-          }, 2000);
-        }
-        break;
-
-      case 'ascendingFromPickup':
-        if (this.currentAltitude < this.cruisingAltitude) {
-          this.currentAltitude += this.verticalSpeed;
-          this.mesh.position.y = this.currentAltitude;
-        } else {
-          this.state = 'movingToDelivery';
-          console.log(`Drone ${this.id} reached cruising altitude, moving to delivery`);
-        }
-        break;
-
-      case 'movingToDelivery':
-        if (this.deliveryPoint) {
-          const direction = new THREE.Vector3(
-            this.deliveryPoint.x - this.mesh.position.x,
-            0,
-            this.deliveryPoint.z - this.mesh.position.z
-          );
-          const distance = direction.length();
-
-          if (distance < 20) {
-            console.log(`Drone ${this.id} starting descent to delivery`);
-            this.state = 'descendingToDelivery';
-          } else {
-            direction.normalize();
-            const moveDistance = Math.min(distance, this.speed);
-            
-            this.mesh.position.x += direction.x * moveDistance;
-            this.mesh.position.z += direction.z * moveDistance;
-            this.mesh.position.y = this.currentAltitude;
-            
-            this.mesh.lookAt(this.deliveryPoint);
-          }
-        }
-        break;
-
-      case 'descendingToDelivery':
-        console.log(`Drone ${this.id} descending, current altitude: ${this.currentAltitude}, target: ${this.deliveryHeight}`);
-        if (this.currentAltitude > this.deliveryHeight) {
-          this.currentAltitude = Math.max(this.deliveryHeight, this.currentAltitude - this.verticalSpeed);
-          this.mesh.position.y = this.currentAltitude;
-        } else {
-          console.log(`Drone ${this.id} reached delivery height`);
-          this.state = 'dropping';
-          setTimeout(() => {
-            this.hasPackage = false;
-            this.state = 'ascendingFromDelivery';
-            console.log(`Drone ${this.id} dropped package, ascending`);
-          }, 2000);
-        }
-        break;
-
-      case 'ascendingFromDelivery':
-        if (this.currentAltitude < this.cruisingAltitude) {
-          this.currentAltitude += this.verticalSpeed;
-          this.mesh.position.y = this.currentAltitude;
-        } else {
-          this.state = 'returningToBase';
-          console.log(`Drone ${this.id} reached cruising altitude, returning to base`);
-        }
-        break;
-
-      case 'returningToBase':
-        const returnDirection = new THREE.Vector3().subVectors(this.basePosition, this.mesh.position);
-        const returnDistance = returnDirection.length();
-
-        if (returnDistance < 20) {
-          this.state = 'idle';
-          this.battery = this.maxBattery;
-          console.log(`Drone ${this.id} returned to base`);
-        } else {
-          returnDirection.normalize().multiplyScalar(this.speed);
-          this.mesh.position.add(returnDirection);
-          this.mesh.position.y = this.currentAltitude;
-          this.mesh.lookAt(this.basePosition);
-        }
-        break;
-    }
-
-    // Update visual indicators
-    this.updateStatusText();
-    this.updateColor();
-  }
-
   setTarget(pickup: THREE.Vector3, delivery: THREE.Vector3) {
     if (this.state === 'idle' && this.battery > 20) {
       this.pickupPoint = pickup.clone();
       this.deliveryPoint = delivery.clone();
       this.state = 'takingOff';
-      console.log(`Drone ${this.id} starting mission to pickup point: ${pickup.x}, ${pickup.z}`);
     }
   }
 
@@ -429,32 +478,205 @@ class Drone {
     this.hasPackage = false;
     this.currentAltitude = this.landingAltitude;
   }
+
+  // Add new methods for collision avoidance
+  checkForCollisions(drones: Drone[]): Drone | null {
+    const now = Date.now();
+    if (now - this.lastCollisionCheck < this.collisionCheckInterval) {
+      return null;
+    }
+    this.lastCollisionCheck = now;
+
+    for (const otherDrone of drones) {
+      if (otherDrone.id === this.id) continue;
+
+      const distance = this.mesh.position.distanceTo(otherDrone.mesh.position);
+      const altitudeDiff = Math.abs(this.currentAltitude - otherDrone.currentAltitude);
+      
+      if (distance < this.avoidanceRadius) {
+        this.collisionsAvoided++;
+        this.collisionDetails.push({
+          timestamp: now,
+          otherDroneId: otherDrone.id,
+          distance: distance
+        });
+        console.log(`Potential collision detected between drone ${this.id} and ${otherDrone.id} at distance ${distance.toFixed(1)}`);
+        return otherDrone;
+      }
+    }
+    return null;
+  }
+
+  calculateAvoidancePath(collidingDrone: Drone): THREE.Vector3[] {
+    const path: THREE.Vector3[] = [];
+    const currentPos = this.mesh.position.clone();
+    const targetPos = this.getCurrentTarget();
+    const collidingPos = collidingDrone.mesh.position.clone();
+
+    // Calculate direction to collision
+    const directionToCollision = new THREE.Vector3().subVectors(collidingPos, currentPos);
+    const perpendicular = new THREE.Vector3(-directionToCollision.z, 0, directionToCollision.x).normalize();
+    
+    // Calculate multiple avoidance points
+    const avoidanceDistance = this.avoidanceRadius * 1.5; // Increased avoidance distance
+    const altitudeChange = this.id < collidingDrone.id ? 25 : -25; // Increased altitude difference
+    
+    // First avoidance point (lateral movement)
+    const lateralAvoidance = currentPos.clone().add(
+      perpendicular.multiplyScalar(avoidanceDistance)
+    );
+    lateralAvoidance.y = this.currentAltitude;
+    path.push(lateralAvoidance);
+
+    // Second avoidance point (altitude change)
+    const verticalAvoidance = currentPos.clone();
+    verticalAvoidance.y = this.currentAltitude + altitudeChange;
+    path.push(verticalAvoidance);
+
+    // Final point (back to original path)
+    const finalPoint = targetPos.clone();
+    finalPoint.y = this.currentAltitude + altitudeChange;
+    path.push(finalPoint);
+
+    console.log(`Drone ${this.id} executing avoidance maneuver with altitude change ${altitudeChange}`);
+    return path;
+  }
+
+  getCurrentTarget(): THREE.Vector3 {
+    switch (this.state) {
+      case 'movingToPickup':
+        return this.pickupPoint!;
+      case 'movingToDelivery':
+        return this.deliveryPoint!;
+      case 'returningToBase':
+        return this.basePosition;
+      default:
+        return this.mesh.position;
+    }
+  }
 }
 
 const SceneContent: React.FC<{ 
   drones: Drone[]; 
   pickupPoints: THREE.Vector3[]; 
-  deliveryPoints: THREE.Vector3[] 
-}> = ({ drones, pickupPoints, deliveryPoints }) => {
+  deliveryPoints: THREE.Vector3[];
+  selectedDroneId: number | null;
+}> = ({ drones, pickupPoints, deliveryPoints, selectedDroneId }) => {
   const { camera } = useThree();
-  const sceneRef = useRef<THREE.Scene | null>(null);
   const buildingsRef = useRef<THREE.Group>(new THREE.Group());
   const roadsRef = useRef<THREE.Group>(new THREE.Group());
+  const controlsRef = useRef<any>(null);
+  const targetDroneRef = useRef<Drone | null>(null);
+  const lastCameraUpdateRef = useRef<number>(0);
+  const lastDronePositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  const cameraTargetRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  const cameraPositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
+
+  // Enhanced camera settings
+  const cameraOffset = new THREE.Vector3(0, 20, 40); // Increased height and distance
+  const cameraLookOffset = new THREE.Vector3(0, 5, 0);
+  const cameraSmoothness = 0.1; // Increased for smoother movement
+  const minCameraDistance = 30;
+  const maxCameraDistance = 150;
+  const cameraUpdateInterval = 16; // 60 FPS
+  const maxCameraSpeed = 1.0; // Increased for more responsive movement
+  const viewAngleThreshold = Math.PI / 4; // 45 degrees
 
   // Improve camera controls
-  const controlsRef = useRef<any>(null);
-
   useEffect(() => {
     if (controlsRef.current) {
       controlsRef.current.enableDamping = true;
-      controlsRef.current.dampingFactor = 0.05;
-      controlsRef.current.rotateSpeed = 0.5;
-      controlsRef.current.zoomSpeed = 0.8;
-      controlsRef.current.panSpeed = 0.8;
-      controlsRef.current.minDistance = 20;
-      controlsRef.current.maxDistance = 500;
+      controlsRef.current.dampingFactor = 0.05; // Reduced for smoother movement
+      controlsRef.current.rotateSpeed = 0.5; // Increased for better control
+      controlsRef.current.zoomSpeed = 0.8; // Increased for better control
+      controlsRef.current.panSpeed = 0.8; // Increased for better control
+      controlsRef.current.minDistance = minCameraDistance;
+      controlsRef.current.maxDistance = maxCameraDistance;
+      controlsRef.current.maxPolarAngle = Math.PI / 2;
+      controlsRef.current.minPolarAngle = Math.PI / 6;
+      controlsRef.current.enabled = false;
     }
   }, []);
+
+  // Update camera position to follow target drone
+  useFrame((state, delta) => {
+    if (controlsRef.current) {
+      controlsRef.current.update();
+    }
+
+    drones.forEach(drone => {
+      if (drone.state !== 'idle') {
+        drone.update(drones);
+      }
+    });
+
+    const now = Date.now();
+    if (now - lastCameraUpdateRef.current >= cameraUpdateInterval) {
+      lastCameraUpdateRef.current = now;
+
+      let droneToFollow: Drone | null = null;
+      
+      if (selectedDroneId !== null) {
+        droneToFollow = drones.find(drone => drone.id === selectedDroneId) || null;
+      }
+      
+      if (!droneToFollow) {
+        droneToFollow = drones.find(drone => drone.state !== 'idle') || null;
+      }
+
+      if (droneToFollow) {
+        targetDroneRef.current = droneToFollow;
+        const targetPosition = droneToFollow.mesh.position.clone();
+        
+        // Calculate movement direction with improved smoothing
+        const movementDirection = new THREE.Vector3().subVectors(
+          targetPosition,
+          lastDronePositionRef.current
+        ).normalize();
+        
+        // Calculate camera position with dynamic offset based on drone's altitude
+        const altitudeFactor = Math.max(1, targetPosition.y / 50); // Scale offset with altitude
+        const dynamicOffset = cameraOffset.clone().multiplyScalar(altitudeFactor);
+        
+        // Calculate camera position behind the drone with improved limits
+        const behindOffset = movementDirection.length() > 0.1 
+          ? movementDirection.clone().multiplyScalar(-1)
+          : new THREE.Vector3(0, 0, -1);
+        
+        behindOffset.y = 0;
+        behindOffset.normalize();
+        
+        // Calculate desired camera position with dynamic height
+        const desiredPosition = targetPosition.clone()
+          .add(behindOffset.multiplyScalar(dynamicOffset.z))
+          .add(new THREE.Vector3(0, dynamicOffset.y, 0));
+        
+        // Calculate look-ahead point with improved prediction
+        const lookAhead = movementDirection.multiplyScalar(15 * altitudeFactor);
+        const desiredLookAt = targetPosition.clone()
+          .add(cameraLookOffset)
+          .add(lookAhead);
+
+        // Smooth camera movement with improved limits
+        const positionDiff = new THREE.Vector3().subVectors(desiredPosition, cameraPositionRef.current);
+        const distance = positionDiff.length();
+        const moveAmount = Math.min(distance * cameraSmoothness, maxCameraSpeed * altitudeFactor);
+        
+        if (distance > 0.01) {
+          positionDiff.normalize().multiplyScalar(moveAmount);
+          cameraPositionRef.current.add(positionDiff);
+          camera.position.copy(cameraPositionRef.current);
+        }
+
+        // Smooth look-at point movement with improved limits
+        cameraTargetRef.current.lerp(desiredLookAt, cameraSmoothness);
+        camera.lookAt(cameraTargetRef.current);
+        
+        // Update last position
+        lastDronePositionRef.current.copy(targetPosition);
+      }
+    }
+  });
 
   // Generate buildings
   useEffect(() => {
@@ -685,19 +907,6 @@ const SceneContent: React.FC<{
     }
   }, []);
 
-  useFrame(() => {
-    if (controlsRef.current) {
-      controlsRef.current.update();
-    }
-    
-    // Update drones with improved performance
-    drones.forEach(drone => {
-      if (drone.state !== 'idle') {
-        drone.update();
-      }
-    });
-  });
-
   return (
     <>
       <ambientLight intensity={0.5} />
@@ -746,6 +955,45 @@ const SceneContent: React.FC<{
   );
 };
 
+// Add new DroneInfoSidebar component
+const DroneInfoSidebar: React.FC<{ drones: Drone[] }> = ({ drones }) => {
+  return (
+    <div style={{
+      position: 'absolute',
+      right: 0,
+      top: 0,
+      width: '300px',
+      height: '100vh',
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      color: 'white',
+      padding: '20px',
+      overflowY: 'auto',
+      zIndex: 1000
+    }}>
+      <h3 style={{ marginTop: 0, marginBottom: '20px', textAlign: 'center' }}>Drone Information</h3>
+      {drones.map(drone => (
+        <div key={drone.id} style={{
+          marginBottom: '15px',
+          padding: '10px',
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          borderRadius: '5px'
+        }}>
+          <h4 style={{ margin: '0 0 10px 0' }}>Drone {drone.id}</h4>
+          <div style={{ marginBottom: '5px' }}>
+            <strong>State:</strong> {drone.state}
+          </div>
+          <div style={{ marginBottom: '5px' }}>
+            <strong>Battery:</strong> {Math.round(drone.battery)}%
+          </div>
+          <div>
+            <strong>Collisions Avoided:</strong> {drone.collisionsAvoided}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   constructor(props: { children: React.ReactNode }) {
     super(props);
@@ -763,9 +1011,20 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   render() {
     if (this.state.hasError) {
       return (
-        <Box sx={{ p: 2, color: 'error.main' }}>
-          <Typography>Something went wrong. Please try refreshing the page.</Typography>
-        </Box>
+        <div style={{ 
+          padding: '16px', 
+          color: '#d32f2f', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          backgroundColor: '#ffebee',
+          borderRadius: '4px',
+          margin: '16px'
+        }}>
+          <h6 style={{ margin: 0 }}>
+            Something went wrong. Please try refreshing the page.
+          </h6>
+        </div>
       );
     }
 
@@ -778,460 +1037,129 @@ const Map3D: React.FC = () => {
   const [pickupPoints, setPickupPoints] = useState<THREE.Vector3[]>([]);
   const [deliveryPoints, setDeliveryPoints] = useState<THREE.Vector3[]>([]);
   const [isSimulationRunning, setIsSimulationRunning] = useState(false);
-  const [fleetStatus, setFleetStatus] = useState<FleetStatus>({
-    status: 'idle',
-    activeDrones: 0,
-    totalDrones: 0,
-    batteryLevel: 0,
-    energyConsumption: 0
-  });
-  const [statistics, setStatistics] = useState<FleetStatistics>({
-    totalDeliveries: 0,
-    averageDeliveryTime: 0,
-    successRate: 0,
-    batteryEfficiency: 0
-  });
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [selectedDroneId, setSelectedDroneId] = useState<string | null>(null);
-  const [selectedDrone, setSelectedDrone] = useState<Drone | null>(null);
-  const [droneDetails, setDroneDetails] = useState<DroneDetails | null>(null);
-  const [isDroneDetailsOpen, setIsDroneDetailsOpen] = useState(false);
-  const [isDroneListOpen, setIsDroneListOpen] = useState(false);
-  const [isStatisticsOpen, setIsStatisticsOpen] = useState(false);
-  const [isFleetControlsOpen, setIsFleetControlsOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settings, setSettings] = useState<FleetSettings>({
-    maxDrones: 10,
-    batteryCapacity: 100,
-    chargingRate: 5,
-    deliveryRadius: 200,
-    pickupRadius: 200
-  });
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [droneCount, setDroneCount] = useState(10);
-  const fleetApi = useRef(new FleetApiClient());
-  const [connectionStatus, setConnectionStatus] = useState<{
-    droneUpdates: 'connecting' | 'connected' | 'error';
-    fleetStatus: 'connecting' | 'connected' | 'error';
-    deliveryUpdates: 'connecting' | 'connected' | 'error';
-  }>({
-    droneUpdates: 'connecting',
-    fleetStatus: 'connecting',
-    deliveryUpdates: 'connecting'
-  });
-  const [connectionError, setConnectionError] = useState<string | null>(null);
-  const webSocketClient = useRef<FleetWebSocketClient | null>(null);
-  const isConnecting = useRef(false);
-  const [webglContextLost, setWebglContextLost] = useState(false);
-  const lastStatusTimestamp = useRef<string>('');
-  const lastUpdateTime = useRef<number>(0);
-  const updateInterval = 100; // Minimum time between updates in milliseconds
+  const [selectedDroneId, setSelectedDroneId] = useState<number | null>(null);
 
-  // Handle WebGL context loss
+  // Initialize drones and points
   useEffect(() => {
-    const handleContextLost = (event: Event) => {
-      event.preventDefault();
-      console.log('WebGL context lost, attempting to recover...');
-      setWebglContextLost(true);
-    };
+    const initializeDronesAndPoints = () => {
+      const newDrones: Drone[] = [];
+      const newPickupPoints: THREE.Vector3[] = [];
+      const newDeliveryPoints: THREE.Vector3[] = [];
 
-    const handleContextRestored = () => {
-      console.log('WebGL context restored');
-      setWebglContextLost(false);
-    };
+      // Create 5 drones
+      for (let i = 0; i < 5; i++) {
+        const drone = new Drone(new THREE.Vector3(0, 0, 0), i);
+        newDrones.push(drone);
 
-    const canvas = document.querySelector('canvas');
-    if (canvas) {
-      canvas.addEventListener('webglcontextlost', handleContextLost);
-      canvas.addEventListener('webglcontextrestored', handleContextRestored);
-    }
+        // Create pickup and delivery points in a circle
+        const angle = (i / 5) * Math.PI * 2;
+        const radius = 100;
+        
+        const pickupX = Math.cos(angle) * radius;
+        const pickupZ = Math.sin(angle) * radius;
+        const pickupPoint = new THREE.Vector3(pickupX, 0, pickupZ);
+        newPickupPoints.push(pickupPoint);
 
-    return () => {
-      if (canvas) {
-        canvas.removeEventListener('webglcontextlost', handleContextLost);
-        canvas.removeEventListener('webglcontextrestored', handleContextRestored);
+        const deliveryX = Math.cos(angle + Math.PI) * radius;
+        const deliveryZ = Math.sin(angle + Math.PI) * radius;
+        const deliveryPoint = new THREE.Vector3(deliveryX, 0, deliveryZ);
+        newDeliveryPoints.push(deliveryPoint);
       }
+
+      setDrones(newDrones);
+      setPickupPoints(newPickupPoints);
+      setDeliveryPoints(newDeliveryPoints);
     };
+
+    initializeDronesAndPoints();
   }, []);
 
-  const handleDroneUpdate = (data: any) => {
-    const now = Date.now();
-    if (now - lastUpdateTime.current < updateInterval) {
-      return; // Skip if too soon since last update
+  const startSimulation = () => {
+    if (!isSimulationRunning) {
+      setIsSimulationRunning(true);
+      setDrones(prevDrones => {
+        return prevDrones.map((drone, index) => {
+          if (drone.state === 'idle' && drone.battery > 20) {
+            const pickupPoint = pickupPoints[index];
+            const deliveryPoint = deliveryPoints[index];
+            if (pickupPoint && deliveryPoint) {
+              drone.setTarget(pickupPoint, deliveryPoint);
+            }
+          }
+          return drone;
+        });
+      });
     }
-    lastUpdateTime.current = now;
+  };
 
+  const stopSimulation = () => {
+    setIsSimulationRunning(false);
     setDrones(prevDrones => {
       return prevDrones.map(drone => {
-        const droneData = data.data.find((d: any) => d.drone_id === drone.id.toString());
-        if (droneData) {
-          // Smoothly interpolate to new position
-          const targetPosition = new THREE.Vector3(
-            droneData.location.lon,
-            droneData.location.altitude,
-            droneData.location.lat
-          );
-          
-          // Calculate direction to target
-          const direction = new THREE.Vector3().subVectors(
-            targetPosition,
-            drone.mesh.position
-          );
-          
-          // Normalize and scale by speed
-          const speed = 0.1; // Adjust this value to control movement speed
-          direction.normalize().multiplyScalar(speed);
-          
-          // Update position
-          drone.mesh.position.add(direction);
-          
-          // Update state and battery
-          drone.state = droneData.status;
-          drone.battery = droneData.battery_level;
-          
-          // Make drone face movement direction
-          if (direction.length() > 0.001) {
-            drone.mesh.lookAt(targetPosition);
-          }
-        }
+        drone.reset();
         return drone;
       });
     });
   };
 
-  // Initialize WebSocket connection and API client
-  useEffect(() => {
-    const initWebSocket = async () => {
-      if (isConnecting.current) return;
-      isConnecting.current = true;
-
-      try {
-        if (!webSocketClient.current) {
-          webSocketClient.current = new FleetWebSocketClient();
-        }
-
-        webSocketClient.current.setCallbacks({
-          onDroneUpdate: (data) => {
-            if (data.type === 'drone_positions') {
-              setConnectionStatus(prev => ({ ...prev, droneUpdates: 'connected' }));
-              handleDroneUpdate(data);
-            }
-          },
-          onFleetStatus: (data) => {
-            if (data.type === 'fleet_status') {
-              setConnectionStatus(prev => ({ ...prev, fleetStatus: 'connected' }));
-              console.log('Fleet status update received:', data);
-              setFleetStatus(data.data);
-              if (data.data.stats.total_drones !== droneCount) {
-                setDroneCount(data.data.stats.total_drones);
-              }
-            }
-          },
-          onDeliveryUpdate: (data) => {
-            if (data.type === 'delivery_update') {
-              setConnectionStatus(prev => ({ ...prev, deliveryUpdates: 'connected' }));
-              console.log('Delivery update received:', data);
-              handleDeliveryUpdate(data);
-            }
-          }
-        });
-
-        await webSocketClient.current.connect();
-        console.log('WebSocket connections established');
-      } catch (error) {
-        console.error('Failed to initialize WebSocket:', error);
-        setConnectionError('Failed to initialize WebSocket connections. Please check your network connection.');
-        setConnectionStatus({
-          droneUpdates: 'error',
-          fleetStatus: 'error',
-          deliveryUpdates: 'error'
-        });
-      } finally {
-        isConnecting.current = false;
-      }
-    };
-
-    initWebSocket();
-
-    // Cleanup function
-    return () => {
-      if (webSocketClient.current) {
-        console.log('Cleaning up WebSocket connections');
-        webSocketClient.current.disconnect();
-        webSocketClient.current = null;
-      }
-    };
-  }, []);
-
-  // Initialize drones and points when drone count changes
-  useEffect(() => {
-    if (droneCount > 0) {
-      initializeDronesAndPoints();
-    }
-  }, [droneCount]);
-
-  const initializeDronesAndPoints = () => {
-    // Create new drones
-    const newDrones: Drone[] = [];
-    for (let i = 0; i < droneCount; i++) {
-      const drone = new Drone(new THREE.Vector3(0, 0, 0), i);
-      newDrones.push(drone);
-    }
-    setDrones(newDrones);
-
-    // Create pickup and delivery points
-    const newPickupPoints: THREE.Vector3[] = [];
-    const newDeliveryPoints: THREE.Vector3[] = [];
-
-    for (let i = 0; i < droneCount; i++) {
-      const pickupAngle = (i / droneCount) * Math.PI * 2;
-      const pickupRadius = settings.pickupRadius;
-      const pickupX = Math.cos(pickupAngle) * pickupRadius;
-      const pickupZ = Math.sin(pickupAngle) * pickupRadius;
-      const pickupPoint = new THREE.Vector3(pickupX, 0, pickupZ);
-      newPickupPoints.push(pickupPoint);
-
-      const deliveryAngle = pickupAngle + Math.PI;
-      const deliveryRadius = settings.deliveryRadius;
-      const deliveryX = Math.cos(deliveryAngle) * deliveryRadius;
-      const deliveryZ = Math.sin(deliveryAngle) * deliveryRadius;
-      const deliveryPoint = new THREE.Vector3(deliveryX, 0, deliveryZ);
-      newDeliveryPoints.push(deliveryPoint);
-    }
-
-    setPickupPoints(newPickupPoints);
-    setDeliveryPoints(newDeliveryPoints);
-
-    // Assign points to drones
-    newDrones.forEach((drone, index) => {
-      drone.pickupPoint = newPickupPoints[index];
-      drone.deliveryPoint = newDeliveryPoints[index];
-    });
-
-    setIsInitialized(true);
-  };
-
-  const handleDeliveryUpdate = (data: any) => {
-    // Handle delivery updates
-    console.log('Processing delivery update:', data);
-  };
-
-  const startSimulation = async () => {
-    if (!isSimulationRunning) {
-      try {
-        setError(null);
-        console.log('Starting fleet...');
-        
-        // Ensure WebSocket is connected before starting
-        if (!webSocketClient.current) {
-          webSocketClient.current = new FleetWebSocketClient();
-          await webSocketClient.current.connect();
-        }
-
-        // First check if the server is reachable
-        try {
-          const status = await fleetApi.current.getFleetStatus();
-          console.log('Server is reachable, current status:', status);
-          
-          // Check if fleet is already running
-          if (status.status === 'running') {
-            setError('Fleet is already running');
-            return;
-          }
-        } catch (error) {
-          console.error('Server connection check failed:', error);
-          setError('Cannot connect to the server. Please check if the server is running.');
-          return;
-        }
-
-        // Try to start the fleet
-        try {
-          await fleetApi.current.startFleet();
-          console.log('Fleet started successfully');
-        } catch (error) {
-          console.error('Failed to start fleet:', error);
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          setError(`Failed to start fleet: ${errorMessage}`);
-          return;
-        }
-
-        setIsSimulationRunning(true);
-        
-        // Get updated status and statistics
-        const status = await fleetApi.current.getFleetStatus();
-        setFleetStatus(status);
-        console.log('Updated fleet status:', status);
-        
-        const stats = await fleetApi.current.getCurrentStatistics();
-        setStatistics(stats);
-        console.log('Updated statistics:', stats);
-
-        // Assign points to drones and start their movement
-        setDrones(prevDrones => {
-          return prevDrones.map((drone, index) => {
-            if (drone.state === 'idle' && drone.battery > 20) {
-              const pickupPoint = pickupPoints[index];
-              const deliveryPoint = deliveryPoints[index];
-              
-              if (pickupPoint && deliveryPoint) {
-                drone.setTarget(pickupPoint, deliveryPoint);
-                console.log(`Drone ${drone.id} assigned to pickup: ${pickupPoint.x}, ${pickupPoint.z} and delivery: ${deliveryPoint.x}, ${deliveryPoint.z}`);
-              }
-            }
-            return drone;
-          });
-        });
-      } catch (error) {
-        console.error('Unexpected error in startSimulation:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        setError(`Unexpected error: ${errorMessage}`);
-      }
-    }
-  };
-
-  const stopSimulation = async () => {
-    try {
-      setError(null);
-      await fleetApi.current.pauseFleet();
-      setIsSimulationRunning(false);
-    } catch (error) {
-      console.error('Failed to pause fleet:', error);
-      setError('Failed to pause fleet. Please try again.');
-    }
-  };
-
-  const resetSimulation = async () => {
-    try {
-      setError(null);
-      await fleetApi.current.resetFleet();
-      setIsSimulationRunning(false);
-      setDrones(prevDrones => {
-        return prevDrones.map(drone => {
-          drone.reset();
-          return drone;
-        });
-      });
-    } catch (error) {
-      console.error('Failed to reset fleet:', error);
-      setError('Failed to reset fleet. Please try again.');
-    }
-  };
-
   return (
     <ErrorBoundary>
-      <div style={{ width: '100%', height: '100vh' }}>
-        {webglContextLost ? (
-          <Box sx={{ 
-            position: 'absolute', 
-            top: '50%', 
-            left: '50%', 
-            transform: 'translate(-50%, -50%)',
-            textAlign: 'center',
-            zIndex: 1000,
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            padding: 2,
-            borderRadius: 1,
-            boxShadow: 3,
-          }}>
-            <Typography variant="h6" color="error">
-              WebGL Context Lost
-            </Typography>
-            <Typography>
-              The 3D rendering context has been lost. Please refresh the page to recover.
-            </Typography>
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={() => window.location.reload()}
-              sx={{ mt: 2 }}
-            >
-              Refresh Page
-            </Button>
-          </Box>
-        ) : (
-          <>
-            <Canvas 
-              camera={{ position: [0, 50, 100], fov: 60 }}
-              onCreated={({ gl }) => {
-                gl.domElement.addEventListener('webglcontextlost', (e) => {
-                  e.preventDefault();
-                  setWebglContextLost(true);
-                });
-              }}
-            >
-              <SceneContent 
-                drones={drones} 
-                pickupPoints={pickupPoints} 
-                deliveryPoints={deliveryPoints} 
-              />
-            </Canvas>
-            <Box
-              sx={{
-                position: 'absolute',
-                top: 20,
-                right: 20,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 2,
-                zIndex: 1000,
-                backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                padding: 2,
-                borderRadius: 1,
-                boxShadow: 3,
-              }}
-            >
-              {connectionError && (
-                <Box sx={{ color: 'error.main', mb: 2 }}>
-                  <Typography>{connectionError}</Typography>
-                </Box>
-              )}
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Typography variant="subtitle2">Connection Status:</Typography>
-                <Typography color={connectionStatus.droneUpdates === 'connected' ? 'success.main' : 'error.main'}>
-                  Drone Updates: {connectionStatus.droneUpdates}
-                </Typography>
-                <Typography color={connectionStatus.fleetStatus === 'connected' ? 'success.main' : 'error.main'}>
-                  Fleet Status: {connectionStatus.fleetStatus}
-                </Typography>
-                <Typography color={connectionStatus.deliveryUpdates === 'connected' ? 'success.main' : 'error.main'}>
-                  Delivery Updates: {connectionStatus.deliveryUpdates}
-                </Typography>
-              </Box>
-              {error && (
-                <Box sx={{ color: 'error.main', mb: 2 }}>
-                  <Typography>{error}</Typography>
-                </Box>
-              )}
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <Button
-                  variant="contained"
-                  color={isSimulationRunning ? 'secondary' : 'primary'}
-                  onClick={isSimulationRunning ? stopSimulation : startSimulation}
-                >
-                  {isSimulationRunning ? 'Stop Simulation' : 'Start Simulation'}
-                </Button>
-                <Button
-                  variant="contained"
-                  color="error"
-                  onClick={resetSimulation}
-                  disabled={isSimulationRunning}
-                >
-                  Reset Simulation
-                </Button>
-              </Box>
-              {fleetStatus && (
-                <Box>
-                  <Typography variant="h6">Fleet Status</Typography>
-                  <Typography>Active Drones: {fleetStatus.activeDrones}</Typography>
-                  <Typography>Total Drones: {fleetStatus.totalDrones}</Typography>
-                  <Typography>Battery Level: {fleetStatus.batteryLevel}%</Typography>
-                  <Typography>Energy Consumption: {fleetStatus.energyConsumption}W</Typography>
-                </Box>
-              )}
-            </Box>
-          </>
-        )}
+      <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
+        <div style={{
+          position: 'absolute',
+          top: 20,
+          left: 20,
+          zIndex: 1000,
+          background: 'rgba(0, 0, 0, 0.7)',
+          padding: '10px',
+          borderRadius: '5px',
+          color: 'white'
+        }}>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Follow Drone:</label>
+          <select 
+            value={selectedDroneId ?? ''}
+            onChange={(e) => setSelectedDroneId(e.target.value ? Number(e.target.value) : null)}
+            style={{
+              padding: '5px',
+              borderRadius: '3px',
+              background: 'white',
+              color: 'black'
+            }}
+          >
+            <option value="">Auto (Follow First Active)</option>
+            {drones.map((drone) => (
+              <option key={drone.id} value={drone.id}>
+                Drone {drone.id} - {drone.state} (Battery: {Math.round(drone.battery)}%)
+              </option>
+            ))}
+          </select>
+        </div>
+        <Canvas>
+          <SceneContent 
+            drones={drones} 
+            pickupPoints={pickupPoints} 
+            deliveryPoints={deliveryPoints}
+            selectedDroneId={selectedDroneId}
+          />
+        </Canvas>
+        <DroneInfoSidebar drones={drones} />
+        <div style={{
+          position: 'absolute',
+          bottom: 20,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 1000,
+          display: 'flex',
+          gap: '10px'
+        }}>
+          <Button
+            variant="contained"
+            color={isSimulationRunning ? 'secondary' : 'primary'}
+            onClick={isSimulationRunning ? stopSimulation : startSimulation}
+          >
+            {isSimulationRunning ? 'Stop Simulation' : 'Start Simulation'}
+          </Button>
+        </div>
       </div>
     </ErrorBoundary>
   );
