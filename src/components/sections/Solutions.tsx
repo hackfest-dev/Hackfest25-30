@@ -73,6 +73,22 @@ const Solutions: React.FC = () => {
             </motion.div>
           ))}
         </div>
+
+        {/* Request Demo Button */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="text-center mt-16"
+        >
+          <AnimatedButton
+            className="bg-primary hover:bg-primary/90 text-white"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          >
+            Request Demo
+          </AnimatedButton>
+        </motion.div>
       </div>
     </section>
   );

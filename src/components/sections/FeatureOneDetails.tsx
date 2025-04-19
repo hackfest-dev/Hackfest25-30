@@ -130,19 +130,6 @@ const FeatureOneDetails: React.FC = () => {
                   air traffic controllers and autonomous systems.
                 </p>
               </div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 1 }}
-              >
-                <AnimatedButton
-                  className="bg-primary hover:bg-primary/90 text-white"
-                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                >
-                  Request Demo
-                </AnimatedButton>
-              </motion.div>
             </motion.div>
           </div>
         </div>
