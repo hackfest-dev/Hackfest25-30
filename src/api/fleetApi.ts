@@ -6,7 +6,31 @@ class FleetApiClient {
     }
 
     async startFleet(): Promise<any> {
-        return this.sendRequest('/api/fleet/start', 'POST');
+        try {
+            const response = await fetch(`${this.baseUrl}/api/fleet/start`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => null);
+                if (response.status === 400) {
+                    console.error('Bad Request details:', errorData);
+                    throw new Error(`Failed to start fleet: ${errorData?.detail || 'Invalid request'}`);
+                }
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Error in startFleet:', error);
+            if (error instanceof Error) {
+                throw new Error(`Failed to start fleet: ${error.message}`);
+            }
+            throw new Error('Failed to start fleet: Unknown error');
+        }
     }
 
     async pauseFleet(): Promise<any> {
@@ -33,28 +57,31 @@ class FleetApiClient {
         return this.sendRequest('/api/fleet/statistics/current', 'GET');
     }
 
-    private async sendRequest(endpoint: string, method: string, body: any = null): Promise<any> {
+    private async sendRequest(endpoint: string, method: string = 'GET', body?: any): Promise<any> {
         try {
-            const response = await fetch(this.baseUrl + endpoint, {
+            const response = await fetch(`${this.baseUrl}${endpoint}`, {
                 method,
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
-                body: body ? JSON.stringify(body) : null
+                body: body ? JSON.stringify(body) : undefined,
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                const errorData = await response.json().catch(() => null);
+                const errorMessage = errorData?.detail || `HTTP error! status: ${response.status}`;
+                console.error(`Error in ${method} ${endpoint}:`, errorMessage);
+                throw new Error(errorMessage);
             }
 
             return await response.json();
         } catch (error) {
-            console.error(`Error in ${method} ${endpoint}:`, error);
             if (error instanceof Error) {
+                console.error(`Error in ${method} ${endpoint}:`, error.message);
                 throw error;
             } else {
-                throw new Error(`Unknown error occurred: ${error}`);
+                console.error(`Unknown error in ${method} ${endpoint}:`, error);
+                throw new Error('An unknown error occurred');
             }
         }
     }

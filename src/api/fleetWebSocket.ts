@@ -1,140 +1,139 @@
 type WebSocketCallback = (data: any) => void;
 
 class FleetWebSocketClient {
-    private connections: {
-        drone: WebSocket | null;
-        fleet: WebSocket | null;
-        delivery: WebSocket | null;
-    };
-    private callbacks: {
-        onDroneUpdate: WebSocketCallback | null;
-        onFleetStatus: WebSocketCallback | null;
-        onDeliveryUpdate: WebSocketCallback | null;
-    };
     private baseUrl: string;
-    private retryCount: number;
-    private maxRetries: number;
-    private isConnecting: boolean;
+    private droneUpdatesSocket: WebSocket | null = null;
+    private fleetStatusSocket: WebSocket | null = null;
+    private deliveryUpdatesSocket: WebSocket | null = null;
+    private callbacks: any = {};
+    private reconnectAttempts: { [key: string]: number } = {
+        'drone-updates': 0,
+        'fleet-status': 0,
+        'delivery-updates': 0
+    };
+    private maxReconnectAttempts = 5;
+    private reconnectTimeout = 2000;
 
-    constructor() {
-        this.connections = {
-            drone: null,
-            fleet: null,
-            delivery: null
-        };
-        this.callbacks = {
-            onDroneUpdate: null,
-            onFleetStatus: null,
-            onDeliveryUpdate: null
-        };
-        this.baseUrl = 'ws://192.168.42.79:8000';
-        this.retryCount = 0;
-        this.maxRetries = 5;
-        this.isConnecting = false;
+    constructor(baseUrl: string = 'http://192.168.42.79:8000') {
+        this.baseUrl = baseUrl.replace('http', 'ws');
     }
 
-    connect() {
-        if (this.isConnecting) {
-            console.log('Already attempting to connect, skipping...');
-            return;
+    setCallbacks(callbacks: any) {
+        this.callbacks = callbacks;
+    }
+
+    async connect() {
+        await this.connectDroneUpdates();
+        await this.connectFleetStatus();
+        await this.connectDeliveryUpdates();
+    }
+
+    private async connectDroneUpdates() {
+        if (this.droneUpdatesSocket?.readyState === WebSocket.OPEN) return;
+
+        try {
+            this.droneUpdatesSocket = new WebSocket(`${this.baseUrl}/ws/drone-updates`);
+            this.setupSocketHandlers(this.droneUpdatesSocket, 'drone-updates', this.callbacks.onDroneUpdate);
+        } catch (error) {
+            console.error('Failed to connect to drone updates WebSocket:', error);
+            this.scheduleReconnect('drone-updates');
         }
-        this.isConnecting = true;
-        this.connectDroneUpdates();
-        this.connectFleetStatus();
-        this.connectDeliveryUpdates();
     }
 
-    private connectWithRetry(ws: WebSocket, endpoint: string, onMessage: (data: any) => void) {
-        ws.onopen = () => {
-            console.log(`Connected to ${endpoint}`);
-            this.retryCount = 0;
-            this.isConnecting = false;
+    private setupSocketHandlers(socket: WebSocket, type: string, callback: (data: any) => void) {
+        socket.onopen = () => {
+            console.log(`WebSocket connected for /ws/${type}`);
+            this.reconnectAttempts[type] = 0;
         };
 
-        ws.onerror = (error) => {
-            console.error(`WebSocket error on ${endpoint}:`, error);
-            if (!this.isConnecting) {
-                this.isConnecting = true;
-                this.retryConnection(ws, endpoint, onMessage);
-            }
-        };
-
-        ws.onclose = () => {
-            console.log(`WebSocket closed for ${endpoint}`);
-            if (!this.isConnecting) {
-                this.isConnecting = true;
-                this.retryConnection(ws, endpoint, onMessage);
-            }
-        };
-
-        ws.onmessage = (event) => {
+        socket.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                onMessage(data);
+                callback(data);
             } catch (error) {
-                console.error(`Error parsing message from ${endpoint}:`, error);
+                console.error(`Error processing ${type} message:`, error);
             }
+        };
+
+        socket.onclose = () => {
+            console.log(`WebSocket closed for /ws/${type}`);
+            this.scheduleReconnect(type);
+        };
+
+        socket.onerror = (error) => {
+            console.error(`WebSocket error for /ws/${type}:`, error);
         };
     }
 
-    private retryConnection(ws: WebSocket, endpoint: string, onMessage: (data: any) => void) {
-        if (this.retryCount < this.maxRetries) {
-            this.retryCount++;
-            const delay = Math.min(2000 * Math.pow(2, this.retryCount - 1), 30000); // Exponential backoff with max 30s
-            console.log(`Retrying connection to ${endpoint} (attempt ${this.retryCount}) in ${delay}ms`);
+    private scheduleReconnect(type: string) {
+        if (this.reconnectAttempts[type] < this.maxReconnectAttempts) {
+            this.reconnectAttempts[type]++;
+            const delay = this.reconnectTimeout * this.reconnectAttempts[type];
+            console.log(`Retrying connection to /ws/${type} (attempt ${this.reconnectAttempts[type]}) in ${delay}ms`);
             
             setTimeout(() => {
-                const newWs = new WebSocket(`${this.baseUrl}${endpoint}`);
-                this.connectWithRetry(newWs, endpoint, onMessage);
+                switch (type) {
+                    case 'drone-updates':
+                        this.connectDroneUpdates();
+                        break;
+                    case 'fleet-status':
+                        this.connectFleetStatus();
+                        break;
+                    case 'delivery-updates':
+                        this.connectDeliveryUpdates();
+                        break;
+                }
             }, delay);
         } else {
-            console.error(`Max retries (${this.maxRetries}) reached for ${endpoint}`);
-            this.isConnecting = false;
+            console.error(`Max reconnection attempts reached for /ws/${type}`);
         }
     }
 
-    private connectDroneUpdates() {
-        const ws = new WebSocket(`${this.baseUrl}/ws/drone-updates`);
-        this.connectWithRetry(ws, '/ws/drone-updates', (data) => {
-            if (this.callbacks.onDroneUpdate) {
-                this.callbacks.onDroneUpdate(data);
-            }
-        });
-        this.connections.drone = ws;
+    private async connectFleetStatus() {
+        if (this.fleetStatusSocket?.readyState === WebSocket.OPEN) return;
+
+        try {
+            this.fleetStatusSocket = new WebSocket(`${this.baseUrl}/ws/fleet-status`);
+            this.setupSocketHandlers(this.fleetStatusSocket, 'fleet-status', this.callbacks.onFleetStatus);
+        } catch (error) {
+            console.error('Failed to connect to fleet status WebSocket:', error);
+            this.scheduleReconnect('fleet-status');
+        }
     }
 
-    private connectFleetStatus() {
-        const ws = new WebSocket(`${this.baseUrl}/ws/fleet-status`);
-        this.connectWithRetry(ws, '/ws/fleet-status', (data) => {
-            if (this.callbacks.onFleetStatus) {
-                this.callbacks.onFleetStatus(data);
-            }
-        });
-        this.connections.fleet = ws;
-    }
+    private async connectDeliveryUpdates() {
+        if (this.deliveryUpdatesSocket?.readyState === WebSocket.OPEN) return;
 
-    private connectDeliveryUpdates() {
-        const ws = new WebSocket(`${this.baseUrl}/ws/delivery-updates`);
-        this.connectWithRetry(ws, '/ws/delivery-updates', (data) => {
-            if (this.callbacks.onDeliveryUpdate) {
-                this.callbacks.onDeliveryUpdate(data);
-            }
-        });
-        this.connections.delivery = ws;
-    }
-
-    setCallbacks(callbacks: Partial<typeof this.callbacks>) {
-        this.callbacks = { ...this.callbacks, ...callbacks };
+        try {
+            this.deliveryUpdatesSocket = new WebSocket(`${this.baseUrl}/ws/delivery-updates`);
+            this.setupSocketHandlers(this.deliveryUpdatesSocket, 'delivery-updates', this.callbacks.onDeliveryUpdate);
+        } catch (error) {
+            console.error('Failed to connect to delivery updates WebSocket:', error);
+            this.scheduleReconnect('delivery-updates');
+        }
     }
 
     disconnect() {
-        Object.values(this.connections).forEach(ws => {
-            if (ws) {
-                ws.onclose = null; // Prevent retry on manual disconnect
-                ws.close();
-            }
-        });
-        this.isConnecting = false;
+        // Close each WebSocket connection if it exists
+        if (this.droneUpdatesSocket) {
+            this.droneUpdatesSocket.close();
+            this.droneUpdatesSocket = null;
+        }
+        if (this.fleetStatusSocket) {
+            this.fleetStatusSocket.close();
+            this.fleetStatusSocket = null;
+        }
+        if (this.deliveryUpdatesSocket) {
+            this.deliveryUpdatesSocket.close();
+            this.deliveryUpdatesSocket = null;
+        }
+        
+        // Reset reconnection attempts
+        this.reconnectAttempts = {
+            'drone-updates': 0,
+            'fleet-status': 0,
+            'delivery-updates': 0
+        };
     }
 }
 

@@ -70,14 +70,14 @@ class Drone {
     this.targetPosition = null;
     this.pickupPoint = null;
     this.deliveryPoint = null;
-    this.speed = 0.5;
+    this.speed = 5;
     this.battery = 100;
     this.maxBattery = 100;
     this.state = 'idle';
     this.currentAltitude = 5;
-    this.cruisingAltitude = 30;
+    this.cruisingAltitude = 50;
     this.landingAltitude = 5;
-    this.verticalSpeed = 0.1;
+    this.verticalSpeed = 2;
     this.hasPackage = false;
     this.energyConsumption = 0.1;
     this.pickupHeight = 2;
@@ -260,8 +260,8 @@ class Drone {
   update() {
     if (this.state === 'idle') return;
 
-    // Update battery
-    this.battery = Math.max(0, this.battery - this.energyConsumption);
+    // Update battery with adjusted consumption rate
+    this.battery = Math.max(0, this.battery - this.energyConsumption * 0.5); // Reduced energy consumption
 
     console.log(`Drone ${this.id} state: ${this.state}, altitude: ${this.currentAltitude}, position: ${this.mesh.position.x}, ${this.mesh.position.y}, ${this.mesh.position.z}`);
 
@@ -278,7 +278,6 @@ class Drone {
 
       case 'movingToPickup':
         if (this.pickupPoint) {
-          // Calculate direction to pickup point
           const direction = new THREE.Vector3(
             this.pickupPoint.x - this.mesh.position.x,
             0,
@@ -286,23 +285,27 @@ class Drone {
           );
           const distance = direction.length();
 
-          console.log(`Drone ${this.id} distance to pickup: ${distance}, pickup point: ${this.pickupPoint.x}, ${this.pickupPoint.y}, ${this.pickupPoint.z}`);
-
           if (distance < 20) {
             console.log(`Drone ${this.id} starting descent to pickup`);
             this.state = 'descendingToPickup';
           } else {
-            // Normalize direction and move with easing
             direction.normalize();
-            const moveDistance = Math.min(distance, this.speed * (1 - Math.exp(-distance / 50)));
+            const moveDistance = Math.min(distance, this.speed);
             
-            // Update position
             this.mesh.position.x += direction.x * moveDistance;
             this.mesh.position.z += direction.z * moveDistance;
             this.mesh.position.y = this.currentAltitude;
             
-            // Make drone face movement direction
-            this.mesh.lookAt(this.pickupPoint);
+            // Smooth rotation towards target
+            const targetRotation = new THREE.Quaternion();
+            targetRotation.setFromRotationMatrix(
+              new THREE.Matrix4().lookAt(
+                this.mesh.position,
+                this.pickupPoint,
+                new THREE.Vector3(0, 1, 0)
+              )
+            );
+            this.mesh.quaternion.slerp(targetRotation, 0.1);
           }
         }
         break;
@@ -335,7 +338,6 @@ class Drone {
 
       case 'movingToDelivery':
         if (this.deliveryPoint) {
-          // Calculate direction to delivery point
           const direction = new THREE.Vector3(
             this.deliveryPoint.x - this.mesh.position.x,
             0,
@@ -343,22 +345,17 @@ class Drone {
           );
           const distance = direction.length();
 
-          console.log(`Drone ${this.id} distance to delivery: ${distance}, delivery point: ${this.deliveryPoint.x}, ${this.deliveryPoint.y}, ${this.deliveryPoint.z}`);
-
           if (distance < 20) {
             console.log(`Drone ${this.id} starting descent to delivery`);
             this.state = 'descendingToDelivery';
           } else {
-            // Normalize direction and move with easing
             direction.normalize();
-            const moveDistance = Math.min(distance, this.speed * (1 - Math.exp(-distance / 50)));
+            const moveDistance = Math.min(distance, this.speed);
             
-            // Update position
             this.mesh.position.x += direction.x * moveDistance;
             this.mesh.position.z += direction.z * moveDistance;
             this.mesh.position.y = this.currentAltitude;
             
-            // Make drone face movement direction
             this.mesh.lookAt(this.deliveryPoint);
           }
         }
@@ -417,6 +414,7 @@ class Drone {
       this.pickupPoint = pickup.clone();
       this.deliveryPoint = delivery.clone();
       this.state = 'takingOff';
+      console.log(`Drone ${this.id} starting mission to pickup point: ${pickup.x}, ${pickup.z}`);
     }
   }
 
@@ -442,6 +440,21 @@ const SceneContent: React.FC<{
   const sceneRef = useRef<THREE.Scene | null>(null);
   const buildingsRef = useRef<THREE.Group>(new THREE.Group());
   const roadsRef = useRef<THREE.Group>(new THREE.Group());
+
+  // Improve camera controls
+  const controlsRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (controlsRef.current) {
+      controlsRef.current.enableDamping = true;
+      controlsRef.current.dampingFactor = 0.05;
+      controlsRef.current.rotateSpeed = 0.5;
+      controlsRef.current.zoomSpeed = 0.8;
+      controlsRef.current.panSpeed = 0.8;
+      controlsRef.current.minDistance = 20;
+      controlsRef.current.maxDistance = 500;
+    }
+  }, []);
 
   // Generate buildings
   useEffect(() => {
@@ -673,6 +686,11 @@ const SceneContent: React.FC<{
   }, []);
 
   useFrame(() => {
+    if (controlsRef.current) {
+      controlsRef.current.update();
+    }
+    
+    // Update drones with improved performance
     drones.forEach(drone => {
       if (drone.state !== 'idle') {
         drone.update();
@@ -690,7 +708,7 @@ const SceneContent: React.FC<{
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
       />
-      <OrbitControls />
+      <OrbitControls ref={controlsRef} />
       {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
         <planeGeometry args={[500, 500]} />
@@ -1003,17 +1021,71 @@ const Map3D: React.FC = () => {
     if (!isSimulationRunning) {
       try {
         setError(null);
-        await fleetApi.current.startFleet();
+        console.log('Starting fleet...');
+        
+        // Ensure WebSocket is connected before starting
+        if (!webSocketClient.current) {
+          webSocketClient.current = new FleetWebSocketClient();
+          await webSocketClient.current.connect();
+        }
+
+        // First check if the server is reachable
+        try {
+          const status = await fleetApi.current.getFleetStatus();
+          console.log('Server is reachable, current status:', status);
+          
+          // Check if fleet is already running
+          if (status.status === 'running') {
+            setError('Fleet is already running');
+            return;
+          }
+        } catch (error) {
+          console.error('Server connection check failed:', error);
+          setError('Cannot connect to the server. Please check if the server is running.');
+          return;
+        }
+
+        // Try to start the fleet
+        try {
+          await fleetApi.current.startFleet();
+          console.log('Fleet started successfully');
+        } catch (error) {
+          console.error('Failed to start fleet:', error);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          setError(`Failed to start fleet: ${errorMessage}`);
+          return;
+        }
+
         setIsSimulationRunning(true);
         
+        // Get updated status and statistics
         const status = await fleetApi.current.getFleetStatus();
         setFleetStatus(status);
+        console.log('Updated fleet status:', status);
         
         const stats = await fleetApi.current.getCurrentStatistics();
         setStatistics(stats);
+        console.log('Updated statistics:', stats);
+
+        // Assign points to drones and start their movement
+        setDrones(prevDrones => {
+          return prevDrones.map((drone, index) => {
+            if (drone.state === 'idle' && drone.battery > 20) {
+              const pickupPoint = pickupPoints[index];
+              const deliveryPoint = deliveryPoints[index];
+              
+              if (pickupPoint && deliveryPoint) {
+                drone.setTarget(pickupPoint, deliveryPoint);
+                console.log(`Drone ${drone.id} assigned to pickup: ${pickupPoint.x}, ${pickupPoint.z} and delivery: ${deliveryPoint.x}, ${deliveryPoint.z}`);
+              }
+            }
+            return drone;
+          });
+        });
       } catch (error) {
-        console.error('Failed to start fleet:', error);
-        setError('Failed to start fleet. Please check if the server is running.');
+        console.error('Unexpected error in startSimulation:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        setError(`Unexpected error: ${errorMessage}`);
       }
     }
   };
