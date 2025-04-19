@@ -5,8 +5,9 @@ import HeroBackground from './HeroBackground';
 
 const Hero: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; opacity: number }>>([]);
+  const [, setMousePosition] = useState({ x: 0, y: 0 });
+  const [particles, setParticles] = useState<Array<{ id: string; x: number; y: number; opacity: number }>>([]);
+  const particleCounterRef = useRef(0);
 
   // Parallax effect values
   const mouseX = useMotionValue(0);
@@ -34,7 +35,7 @@ const Hero: React.FC = () => {
 
       // Add particle
       const newParticle = {
-        id: Date.now(),
+        id: `${Date.now()}-${particleCounterRef.current++}`,
         x: e.clientX,
         y: e.clientY,
         opacity: 1

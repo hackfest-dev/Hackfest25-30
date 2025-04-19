@@ -12,6 +12,9 @@ import AnimatedPage from './components/AnimatedPage';
 import FeatureOneDetails from './components/sections/FeatureOneDetails';
 import FeatureTwoDetails from './components/sections/FeatureTwoDetails';
 import FeatureThreeDetails from './components/sections/FeatureThreeDetails';
+import PhaseOneDetails from './components/sections/implementation/PhaseOneDetails';
+import PhaseTwoDetails from './components/sections/implementation/PhaseTwoDetails';
+import PhaseThreeDetails from './components/sections/implementation/PhaseThreeDetails';
 import './styles/cursor.css';
 
 // Wrap the main content in a component to use useLocation
@@ -56,13 +59,14 @@ const MainContent = () => {
   );
 };
 
-function App() {
+const App = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Simulate loading time
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 1500);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, []);
@@ -73,31 +77,20 @@ function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-black text-white">
+      <div className="relative">
         <Cursor />
-        
         <Routes>
           <Route path="/" element={<MainContent />} />
-
-          <Route path="/features/ai-traffic-prediction" element={
-            <div className="relative z-50">
-              <FeatureOneDetails />
-            </div>
-          } />
-          <Route path="/features/dynamic-route-optimization" element={
-            <div className="relative z-50">
-              <FeatureTwoDetails />
-            </div>
-          } />
-          <Route path="/features/real-time-monitoring" element={
-            <div className="relative z-50">
-              <FeatureThreeDetails />
-            </div>
-          } />
+          <Route path="/features/ai-traffic-prediction" element={<FeatureOneDetails />} />
+          <Route path="/features/dynamic-route-optimization" element={<FeatureTwoDetails />} />
+          <Route path="/features/real-time-monitoring" element={<FeatureThreeDetails />} />
+          <Route path="/implementation/phase-one" element={<PhaseOneDetails />} />
+          <Route path="/implementation/phase-two" element={<PhaseTwoDetails />} />
+          <Route path="/implementation/phase-three" element={<PhaseThreeDetails />} />
         </Routes>
       </div>
     </Router>
   );
-}
+};
 
 export default App; 
