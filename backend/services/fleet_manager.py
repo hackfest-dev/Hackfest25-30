@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from backend.services.routing_service import RoutingService, Point
 import asyncio
 import logging
-from backend.websocket_endpoints import manager as ws_manager
+from backend.websocket_endpoints import manager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -46,37 +46,324 @@ class Delivery:
     estimated_time: Optional[float] = None
 
 class FleetManager:
-    def __init__(self, num_drones: int = 100, num_deliveries: int = 1000):
-        self.routing_service = RoutingService()
-        self.active_drones = {}  # Initialize active_drones dictionary
-        self.drones: Dict[str, Drone] = {}
-        self.deliveries: Dict[str, Delivery] = {}
-        self.delivery_queue: List[str] = []  # Priority queue of delivery IDs
-        self.executor = ThreadPoolExecutor(max_workers=50)
+    def __init__(self, num_drones: int = 10, num_deliveries: int = 20):
+        """Initialize the fleet manager"""
+        self.num_drones = num_drones
+        self.num_deliveries = num_deliveries
+        self.drones = {}
+        self.deliveries = {}
+        self.delivery_queue = []
         self.is_running = False
         self.start_time = None
-        self.pause_time = None
+        self.statistics_history = []
+        self.routing_service = RoutingService()
         self.total_pause_duration = timedelta(0)
-        self.num_drones = num_drones  # Store the number of drones
-        self.num_deliveries = num_deliveries
-        self.time_scale = 1.0  # Time scale factor (1.0 = real time)
-        self.statistics_history: List[Dict[str, Any]] = []  # Store historical statistics
+        self.pause_time = None
         
-        # Initialize drones
-        self._initialize_drones(num_drones)
-        # Generate random deliveries will be handled in start() method
+    async def initialize(self):
+        """Initialize the fleet manager by setting up drones and initial state"""
+        try:
+            logger.info(f"Initializing {self.num_drones} drones...")
+            # Initialize drones
+            for i in range(self.num_drones):
+                drone_id = f"drone_{i}"
+                self.drones[drone_id] = Drone(
+                    id=drone_id,
+                    current_location=self.routing_service.base_location,
+                    status='idle',
+                    battery_level=100.0
+                )
+            logger.info("Drones initialized successfully")
+            
+            # Generate initial deliveries
+            await self._generate_deliveries(self.num_deliveries)
+            logger.info("Initial deliveries generated successfully")
+            
+            return {"status": "success", "message": "Fleet manager initialized successfully"}
+            
+        except Exception as e:
+            logger.error(f"Error initializing fleet manager: {str(e)}")
+            raise
 
-    def _initialize_drones(self, num_drones: int):
-        """Initialize the drone fleet"""
-        base_location = self.routing_service.base_location
-        for i in range(num_drones):
-            drone_id = f"drone_{i}"
-            self.drones[drone_id] = Drone(
-                id=drone_id,
-                current_location=base_location,  # All drones start at base
-                status='idle',
-                battery_level=100.0
+    async def start(self):
+        """Start the fleet manager and initialize deliveries"""
+        try:
+            logger.info("Starting fleet manager...")
+            
+            # Check if already running
+            if self.is_running:
+                logger.warning("Fleet is already running")
+                raise ValueError("Fleet is already running")
+            
+            # Clear existing deliveries and generate new ones
+            logger.info("Clearing existing deliveries...")
+            self.deliveries.clear()
+            self.delivery_queue = []
+            
+            # Reset drones to initial state
+            logger.info("Resetting drones to initial state...")
+            for drone in self.drones.values():
+                drone.status = 'idle'
+                drone.battery_level = 100.0
+                drone.current_delivery = None
+                drone.completed_deliveries = 0
+                drone.total_distance = 0.0
+                drone.total_flight_time = 0.0
+                drone.route_history = []
+                drone.current_location = self.routing_service.base_location
+            
+            # Generate new deliveries
+            logger.info(f"Generating {self.num_deliveries} deliveries...")
+            await self._generate_deliveries(self.num_deliveries)
+            
+            self.start_time = datetime.now(UTC)
+            self.is_running = True
+            
+            # Broadcast initial status
+            await manager.broadcast_fleet_status(self.get_status())
+            
+            # Start processing deliveries in a background task
+            logger.info("Starting delivery processing task...")
+            asyncio.create_task(self.process_deliveries())
+            
+            logger.info("Fleet manager started successfully")
+            return {"status": "started", "message": "Fleet operations started successfully"}
+            
+        except Exception as e:
+            logger.error(f"Error starting fleet manager: {str(e)}")
+            self.is_running = False
+            raise
+
+    async def process_deliveries(self):
+        """Main loop to process all deliveries"""
+        try:
+            logger.info("Starting delivery processing loop...")
+            while self.is_running:
+                # Get idle drones
+                idle_drones = [d for d in self.drones.values() if d.status == 'idle']
+                
+                # Process each idle drone
+                for drone in idle_drones:
+                    if not self.delivery_queue:
+                        logger.debug("No deliveries in queue")
+                        break
+                        
+                    # Find nearest delivery
+                    nearest_delivery_id = await self._find_nearest_delivery(drone)
+                    if nearest_delivery_id:
+                        logger.info(f"Assigning delivery {nearest_delivery_id} to drone {drone.id}")
+                        try:
+                            # Assign and process the delivery
+                            await self._assign_delivery(drone.id, nearest_delivery_id)
+                            asyncio.create_task(self._process_drone_delivery(drone.id, nearest_delivery_id))
+                        except Exception as e:
+                            logger.error(f"Error processing delivery: {str(e)}")
+                
+                # Record statistics and broadcast status
+                now = datetime.now(UTC)
+                if len(self.statistics_history) == 0 or \
+                   (now - self.statistics_history[-1]["timestamp"]).total_seconds() >= 1:
+                    self._record_statistics()
+                    await manager.broadcast_fleet_status(self.get_status())
+                
+                # Check if all deliveries are completed
+                if not self.delivery_queue and \
+                   all(d.status == 'completed' for d in self.deliveries.values()):
+                    logger.info("All deliveries completed")
+                    break
+                
+                # Small delay to prevent CPU overload
+                await asyncio.sleep(0.1)
+                
+        except Exception as e:
+            logger.error(f"Error in process_deliveries: {str(e)}")
+            self.is_running = False
+            raise
+
+    async def _find_nearest_delivery(self, drone: Drone) -> Optional[str]:
+        """Find the nearest unassigned delivery for a drone"""
+        try:
+            # Get all pending deliveries from the queue
+            pending_deliveries = [
+                delivery_id for _, _, delivery_id in self.delivery_queue
+                if self.deliveries[delivery_id].status == 'pending'
+            ]
+            
+            if not pending_deliveries:
+                return None
+            
+            min_distance = float('inf')
+            nearest_delivery_id = None
+            
+            for delivery_id in pending_deliveries:
+                delivery = self.deliveries[delivery_id]
+                # Calculate distance from drone to pickup
+                distance = self.routing_service.calculate_distance(
+                    drone.current_location,
+                    delivery.pickup
+                )
+                # Consider battery level and delivery weight
+                if (distance < min_distance and 
+                    drone.battery_level > 30 and  # Ensure enough battery
+                    delivery.weight <= 5.0):  # Check weight limit
+                    min_distance = distance
+                    nearest_delivery_id = delivery_id
+            
+            return nearest_delivery_id
+            
+        except Exception as e:
+            logger.error(f"Error finding nearest delivery: {str(e)}")
+            return None
+
+    async def _process_drone_delivery(self, drone_id: str, delivery_id: str):
+        """Process a single delivery for a drone"""
+        try:
+            drone = self.drones[drone_id]
+            delivery = self.deliveries[delivery_id]
+            
+            logger.info(f"Processing delivery {delivery_id} with drone {drone_id}")
+            
+            # Update drone and delivery status
+            drone.status = 'en_route'
+            drone.current_delivery = delivery_id
+            delivery.status = 'in_progress'
+            delivery.assigned_drone = drone_id
+            
+            # Broadcast status updates
+            await manager.broadcast_drone_positions([{
+                "drone_id": drone_id,
+                "status": drone.status,
+                "position": {
+                    "lat": drone.current_location.lat,
+                    "lon": drone.current_location.lon,
+                    "altitude": drone.current_location.altitude
+                }
+            }])
+            
+            await manager.broadcast_delivery_update({
+                "delivery_id": delivery_id,
+                "status": delivery.status,
+                "assigned_drone": drone_id
+            })
+            
+            # Calculate route to pickup
+            route_to_pickup = await self.routing_service.calculate_route(
+                start={"lat": drone.current_location.lat, "lon": drone.current_location.lon},
+                end={"lat": delivery.pickup.lat, "lon": delivery.pickup.lon},
+                drone_id=drone_id
             )
+            
+            # Move to pickup location
+            for segment in route_to_pickup["segments"]:
+                # Update drone position and stats
+                drone.current_location = Point(
+                    lat=segment["end"]["lat"],
+                    lon=segment["end"]["lon"],
+                    altitude=segment["end"]["altitude"]
+                )
+                drone.battery_level -= segment["energy_consumption"]
+                drone.total_distance += segment["distance"]
+                
+                # Broadcast position update
+                await manager.broadcast_drone_positions([{
+                    "drone_id": drone_id,
+                    "status": drone.status,
+                    "position": {
+                        "lat": drone.current_location.lat,
+                        "lon": drone.current_location.lon,
+                        "altitude": drone.current_location.altitude
+                    }
+                }])
+                
+                await asyncio.sleep(0.1)  # Small delay for visualization
+            
+            # Update delivery status to picked up
+            delivery.status = 'picked_up'
+            await manager.broadcast_delivery_update({
+                "delivery_id": delivery_id,
+                "status": delivery.status
+            })
+            
+            # Calculate route to dropoff
+            route_to_dropoff = await self.routing_service.calculate_route(
+                start={"lat": delivery.pickup.lat, "lon": delivery.pickup.lon},
+                end={"lat": delivery.dropoff.lat, "lon": delivery.dropoff.lon},
+                drone_id=drone_id
+            )
+            
+            # Move to dropoff location
+            for segment in route_to_dropoff["segments"]:
+                # Update drone position and stats
+                drone.current_location = Point(
+                    lat=segment["end"]["lat"],
+                    lon=segment["end"]["lon"],
+                    altitude=segment["end"]["altitude"]
+                )
+                drone.battery_level -= segment["energy_consumption"]
+                drone.total_distance += segment["distance"]
+                
+                # Broadcast position update
+                await manager.broadcast_drone_positions([{
+                    "drone_id": drone_id,
+                    "status": drone.status,
+                    "position": {
+                        "lat": drone.current_location.lat,
+                        "lon": drone.current_location.lon,
+                        "altitude": drone.current_location.altitude
+                    }
+                }])
+                
+                await asyncio.sleep(0.1)  # Small delay for visualization
+            
+            # Complete the delivery
+            delivery.status = 'completed'
+            delivery.completion_time = datetime.now(UTC)
+            drone.status = 'idle'
+            drone.current_delivery = None
+            drone.completed_deliveries += 1
+            
+            # Broadcast final updates
+            await manager.broadcast_drone_positions([{
+                "drone_id": drone_id,
+                "status": drone.status,
+                "position": {
+                    "lat": drone.current_location.lat,
+                    "lon": drone.current_location.lon,
+                    "altitude": drone.current_location.altitude
+                }
+            }])
+            
+            await manager.broadcast_delivery_update({
+                "delivery_id": delivery_id,
+                "status": delivery.status,
+                "completion_time": delivery.completion_time.isoformat()
+            })
+            
+            logger.info(f"Completed delivery {delivery_id} with drone {drone_id}")
+            
+        except Exception as e:
+            logger.error(f"Error processing delivery {delivery_id} with drone {drone_id}: {str(e)}")
+            # Reset states on error
+            drone.status = 'idle'
+            drone.current_delivery = None
+            delivery.status = 'pending'
+            delivery.assigned_drone = None
+            # Broadcast error states
+            await manager.broadcast_drone_positions([{
+                "drone_id": drone_id,
+                "status": 'idle',
+                "position": {
+                    "lat": drone.current_location.lat,
+                    "lon": drone.current_location.lon,
+                    "altitude": drone.current_location.altitude
+                }
+            }])
+            await manager.broadcast_delivery_update({
+                "delivery_id": delivery_id,
+                "status": 'pending',
+                "assigned_drone": None
+            })
+            raise
 
     async def _generate_deliveries(self, num_deliveries: int):
         """Generate random deliveries within service area"""
@@ -103,7 +390,7 @@ class FleetManager:
                             route = await self.routing_service.calculate_route(
                                 {"lat": pickup.lat, "lon": pickup.lon},
                                 {"lat": dropoff.lat, "lon": dropoff.lon},
-                                f"drone_{i % self.num_drones}"  # Assign to a drone in round-robin fashion
+                                f"drone_{i % len(self.drones)}"  # Assign to a drone in round-robin fashion
                             )
                             estimated_time = route["total_time"] if route else None
                         except Exception as e:
@@ -121,12 +408,14 @@ class FleetManager:
                             estimated_time=estimated_time
                         )
                         
+                        # Store the delivery
                         self.deliveries[delivery_id] = delivery
+                        
                         # Add to priority queue with priority and weight consideration
                         heapq.heappush(self.delivery_queue, (delivery.priority, delivery.weight, delivery_id))
                         
                         # Log success and break retry loop
-                        logger.debug(f"Generated delivery {delivery_id}")
+                        logger.info(f"Generated delivery {delivery_id} with priority {delivery.priority}")
                         break
                         
                     except Exception as e:
@@ -134,34 +423,35 @@ class FleetManager:
                         if attempt == max_retries - 1:
                             raise ValueError(f"Failed to generate delivery after {max_retries} attempts")
                 
+            # Broadcast initial delivery status
+            await manager.broadcast_delivery_update({
+                "deliveries": {
+                    d_id: {
+                        "status": d.status,
+                        "assigned_drone": d.assigned_drone,
+                        "priority": d.priority,
+                        "weight": d.weight,
+                        "pickup": {
+                            "lat": d.pickup.lat,
+                            "lon": d.pickup.lon,
+                            "altitude": d.pickup.altitude
+                        },
+                        "dropoff": {
+                            "lat": d.dropoff.lat,
+                            "lon": d.dropoff.lon,
+                            "altitude": d.dropoff.altitude
+                        }
+                    }
+                    for d_id, d in self.deliveries.items()
+                }
+            })
+            
             logger.info(f"Successfully generated {len(self.deliveries)} deliveries")
             return True
             
         except Exception as e:
             logger.error(f"Failed to generate deliveries: {str(e)}")
             raise ValueError(f"Failed to generate deliveries: {str(e)}")
-
-    async def _find_nearest_delivery(self, drone: Drone) -> Optional[str]:
-        """Find the nearest unassigned delivery for a drone"""
-        min_distance = float('inf')
-        nearest_delivery_id = None
-        
-        # Check all pending deliveries
-        pending_deliveries = [d for d in self.deliveries.values() if d.status == 'pending']
-        for delivery in pending_deliveries:
-            # Calculate distance from drone to pickup
-            distance = self.routing_service.calculate_distance(
-                drone.current_location,
-                delivery.pickup
-            )
-            # Consider battery level and delivery weight
-            if (distance < min_distance and 
-                drone.battery_level > 30 and  # Ensure enough battery
-                delivery.weight <= 5.0):  # Check weight limit
-                min_distance = distance
-                nearest_delivery_id = delivery.id
-        
-        return nearest_delivery_id
 
     async def _assign_delivery(self, drone_id: str, delivery_id: str):
         """Assign a delivery to a drone"""
@@ -178,9 +468,9 @@ class FleetManager:
             # Remove from delivery queue if present
             if delivery_id in self.delivery_queue:
                 self.delivery_queue.remove(delivery_id)
-            
+                
             # Broadcast updates
-            await ws_manager.broadcast_drone_positions([{
+            await manager.broadcast_drone_positions([{
                 "drone_id": drone_id,
                 "status": drone.status,
                 "position": {
@@ -190,7 +480,7 @@ class FleetManager:
                 }
             }])
             
-            await ws_manager.broadcast_delivery_update({
+            await manager.broadcast_delivery_update({
                 "delivery_id": delivery_id,
                 "status": delivery.status,
                 "assigned_drone": drone_id
@@ -223,7 +513,7 @@ class FleetManager:
         drone.completed_deliveries += 1
         
         # Broadcast updates
-        await ws_manager.broadcast_drone_positions([{
+        await manager.broadcast_drone_positions([{
             "drone_id": drone_id,
             "status": drone.status,
             "position": {
@@ -233,61 +523,11 @@ class FleetManager:
             }
         }])
         
-        await ws_manager.broadcast_delivery_update({
+        await manager.broadcast_delivery_update({
             "delivery_id": delivery.id,
             "status": delivery.status,
             "completion_time": delivery.completion_time.isoformat()
         })
-
-    async def process_deliveries(self):
-        """Main loop to process all deliveries"""
-        try:
-            self.is_running = True
-            self.start_time = datetime.now(UTC)
-            
-            # Broadcast initial fleet status
-            await ws_manager.broadcast_fleet_status(self.get_status())
-            
-            while self.is_running:
-                # Get idle drones
-                idle_drones = [d for d in self.drones.values() if d.status == 'idle']
-                
-                # Update waiting times for idle drones
-                now = datetime.now(UTC)
-                for drone in idle_drones:
-                    time_since_last_update = (now - drone.last_status_change).total_seconds()
-                    drone.total_waiting_time += time_since_last_update
-                    drone.last_status_change = now
-                
-                # Process each idle drone
-                for drone in idle_drones:
-                    # Find nearest delivery
-                    nearest_delivery_id = await self._find_nearest_delivery(drone)
-                    if nearest_delivery_id:
-                        # Assign and process the delivery
-                        await self._process_drone_delivery(drone.id, nearest_delivery_id)
-                
-                # Record statistics and broadcast status
-                if len(self.statistics_history) == 0 or \
-                   (now - self.statistics_history[-1]["timestamp"]).total_seconds() >= 60:
-                    self._record_statistics()
-                    await ws_manager.broadcast_fleet_status(self.get_status())
-                
-                # Check if there are any pending deliveries or active drones
-                if not self.delivery_queue and not any(d.status != 'idle' for d in self.drones.values()):
-                    break
-                
-                # Small delay to prevent CPU overload
-                await asyncio.sleep(self._get_scaled_sleep(0.1))
-                
-        except Exception as e:
-            logger.error(f"Error in process_deliveries: {str(e)}")
-            self.is_running = False
-            # Broadcast error status
-            await ws_manager.broadcast_fleet_status({
-                "error": str(e),
-                "is_running": False
-            })
 
     def _record_statistics(self):
         """Record current statistics"""
@@ -317,108 +557,6 @@ class FleetManager:
         if not self.statistics_history:
             return {}
         return self.statistics_history[-1]
-
-    async def _process_drone_delivery(self, drone_id: str, delivery_id: str):
-        """Process a single delivery for a drone"""
-        try:
-            drone = self.drones[drone_id]
-            delivery = self.deliveries[delivery_id]
-            
-            # Update status and waiting time
-            drone.status = 'en_route'
-            drone.last_status_change = datetime.now(UTC)
-            
-            print(f"Starting delivery {delivery_id} for drone {drone_id}")
-            print(f"Current waiting time: {drone.total_waiting_time:.2f} seconds")
-            
-            # Assign the delivery
-            await self._assign_delivery(drone_id, delivery_id)
-            
-            # First, calculate route from base to pickup
-            route = await self.routing_service.calculate_route(
-                start={"lat": drone.current_location.lat, "lon": drone.current_location.lon},
-                end={"lat": delivery.pickup.lat, "lon": delivery.pickup.lon},
-                drone_id=drone_id
-            )
-            
-            # Move drone from base to pickup
-            for segment in route["segments"]:
-                move_time = segment["time"]
-                await asyncio.sleep(self._get_scaled_sleep(move_time))
-                
-                drone.battery_level -= segment["energy_consumption"]
-                drone.current_location = Point(
-                    lat=segment["end"]["lat"],
-                    lon=segment["end"]["lon"],
-                    altitude=segment["end"]["altitude"]
-                )
-                drone.total_distance += segment["distance"]
-                drone.total_flight_time += move_time
-                
-                print(f"Drone {drone_id} moved to {drone.current_location}")
-            
-            # Simulate pickup time
-            await asyncio.sleep(self._get_scaled_sleep(2))
-            
-            # Calculate route from pickup to dropoff
-            route = await self.routing_service.calculate_route(
-                start={"lat": delivery.pickup.lat, "lon": delivery.pickup.lon},
-                end={"lat": delivery.dropoff.lat, "lon": delivery.dropoff.lon},
-                drone_id=drone_id
-            )
-            
-            # Move drone from pickup to dropoff
-            for segment in route["segments"]:
-                move_time = segment["time"]
-                await asyncio.sleep(self._get_scaled_sleep(move_time))
-                
-                drone.battery_level -= segment["energy_consumption"]
-                drone.current_location = Point(
-                    lat=segment["end"]["lat"],
-                    lon=segment["end"]["lon"],
-                    altitude=segment["end"]["altitude"]
-                )
-                drone.total_distance += segment["distance"]
-                drone.total_flight_time += move_time
-                
-                print(f"Drone {drone_id} moved to {drone.current_location}")
-            
-            # Calculate route back to base
-            route = await self.routing_service.calculate_route(
-                start={"lat": delivery.dropoff.lat, "lon": delivery.dropoff.lon},
-                end={"lat": self.routing_service.base_location.lat, "lon": self.routing_service.base_location.lon},
-                drone_id=drone_id
-            )
-            
-            # Move drone back to base
-            for segment in route["segments"]:
-                move_time = segment["time"]
-                await asyncio.sleep(self._get_scaled_sleep(move_time))
-                
-                drone.battery_level -= segment["energy_consumption"]
-                drone.current_location = Point(
-                    lat=segment["end"]["lat"],
-                    lon=segment["end"]["lon"],
-                    altitude=segment["end"]["altitude"]
-                )
-                drone.total_distance += segment["distance"]
-                drone.total_flight_time += move_time
-                
-                print(f"Drone {drone_id} moved to {drone.current_location}")
-            
-            # Complete the delivery
-            await self._complete_delivery(drone_id)
-            
-            # If battery low, charge the drone
-            if drone.battery_level < 20:
-                await self._charge_drone(drone_id)
-                
-        except Exception as e:
-            print(f"Error processing delivery for drone {drone_id}: {str(e)}")
-            # Reset drone status on error
-            drone = self.drones[drone_id]
-            drone.status = 'idle'
-            drone.current_delivery = None
 
     def pause(self):
         """Pause the fleet operations"""
@@ -532,70 +670,11 @@ class FleetManager:
             }
         }
 
-    async def start(self):
-        """Start the fleet manager and initialize deliveries"""
-        try:
-            logger.info("Starting fleet manager...")
-            
-            # Check if already running
-            if self.is_running:
-                logger.warning("Fleet is already running")
-                raise ValueError("Fleet is already running")
-            
-            # Clear existing deliveries and generate new ones
-            logger.info("Clearing existing deliveries...")
-            self.deliveries.clear()
-            self.delivery_queue = []
-            
-            # Initialize drones if not already done
-            if not self.drones:
-                logger.info("Initializing drones...")
-                self._initialize_drones(self.num_drones)
-            
-            # Generate deliveries
-            logger.info(f"Generating {self.num_deliveries} deliveries...")
-            await self._generate_deliveries(self.num_deliveries)
-            
-            # Reset drones to initial state
-            logger.info("Resetting drones to initial state...")
-            for drone in self.drones.values():
-                drone.status = 'idle'
-                drone.battery_level = 100.0
-                drone.current_delivery = None
-                drone.completed_deliveries = 0
-                drone.total_distance = 0.0
-                drone.total_flight_time = 0.0
-                drone.route_history = []
-                drone.current_location = self.routing_service.base_location
-            
-            self.start_time = datetime.now(UTC)
-            self.is_running = True
-            
-            # Broadcast initial status
-            await ws_manager.broadcast_fleet_status(self.get_status())
-            
-            logger.info("Fleet manager started successfully")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error starting fleet manager: {str(e)}")
-            self.is_running = False
-            # Broadcast error status
-            await ws_manager.broadcast_fleet_status({
-                "error": str(e),
-                "is_running": False
-            })
-            raise
-
     def set_time_scale(self, scale: float):
         """Set the time scale factor for simulation speed"""
         if scale <= 0:
             raise ValueError("Time scale must be positive")
-        self.time_scale = scale
-
-    def _get_scaled_sleep(self, seconds: float) -> float:
-        """Get the scaled sleep duration based on time scale"""
-        return seconds / self.time_scale 
+        # Time scale is handled by the _get_scaled_sleep method
 
     async def start_fleet(self, drone_configs: List[Dict]) -> Dict:
         """Start the fleet with the given drone configurations"""
@@ -628,7 +707,6 @@ class FleetManager:
                         
                     print(f"Successfully calculated route for drone {drone_id}")
                     results[drone_id] = {"route": route}
-                    self.active_drones[drone_id] = route
                     
                 except Exception as e:
                     print(f"Error processing drone {drone_id}: {str(e)}")

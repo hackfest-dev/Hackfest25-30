@@ -1,12 +1,12 @@
 from sqlalchemy.orm import declarative_base, Session
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from config import DATABASE_URL
+from backend.config import DATABASE_URL
 from sqlalchemy import Column, String, Float, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
-from models.drone_simulation import Simulation, Drone, Delivery
+from backend.models.drone_simulation import Simulation, Drone, Delivery
 from typing import List, Dict, Any
 
 Base = declarative_base()

@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from main import app
-from models.drone_simulation import Base, get_db
+from backend.models.drone_simulation import Base, get_db
 
 # Create an in-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"

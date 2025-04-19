@@ -1,8 +1,8 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import uuid
-from datetime import datetime
-from models.drone_simulation import Drone, Delivery, Simulation
-from services.database_service import DatabaseService
+from datetime import datetime, timedelta
+from backend.models.drone_simulation import Drone, Delivery, Simulation
+from backend.services.database_service import DatabaseService
 
 class DroneSimulation:
     def __init__(self):

@@ -4,228 +4,1105 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fleet Management</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        #map {
-            height: 600px;
-            width: 100%;
-            margin-bottom: 20px;
+        /* Dark theme variables and styles */
+        :root {
+            --dark-bg: #121212;
+            --darker-bg: #0a0a0a;
+            --card-bg: #1e1e1e;
+            --card-header: #252525;
+            --border-color: #333;
+            --text-primary: #e0e0e0;
+            --text-secondary: #aaaaaa;
+            --accent-primary: #2d88ff;
+            --accent-secondary: #235cc5;
+            --success: #28a745;
+            --warning: #ffc107;
+            --danger: #dc3545;
+            --info: #17a2b8;
         }
-        .status-panel {
-            height: 300px;
+        
+        /* Rest of the dark theme styles */
+        body {
+            background-color: var(--dark-bg);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        
+        .navbar {
+            background-color: var(--darker-bg);
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            padding: 0.8rem 1rem;
+        }
+        
+        .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .navbar-brand i {
+            color: var(--accent-primary);
+            margin-right: 0.5rem;
+        }
+        
+        #map {
+            height: calc(100vh - 60px);
+            width: 100%;
+            background-color: #1a1a1a;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .dashboard-container {
+            padding: 1rem;
+            height: calc(100vh - 60px);
             overflow-y: auto;
         }
+        
+        .status-panel {
+            max-height: 400px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent-primary) var(--card-bg);
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .card-header {
+            background-color: var(--card-header);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.75rem 1rem;
+        }
+        
+        .card-title {
+            color: var(--text-primary);
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin: 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .card-title i {
+            margin-right: 0.5rem;
+            color: var(--accent-primary);
+        }
+        
+        .card-body {
+            padding: 1rem;
+        }
+        
         .drone-marker {
-            background-color: blue;
+            background-color: var(--accent-primary);
             border-radius: 50%;
             border: 2px solid white;
+            box-shadow: 0 0 10px rgba(45, 136, 255, 0.7);
         }
-        .delivery-marker {
-            background-color: red;
+        
+        .delivery-marker.pickup {
+            background-color: var(--danger);
             border-radius: 50%;
             border: 2px solid white;
+            box-shadow: 0 0 10px rgba(220, 53, 69, 0.7);
         }
-        .stats-card {
-            margin-bottom: 15px;
+        
+        .delivery-marker.dropoff {
+            background-color: var(--success);
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 10px rgba(40, 167, 69, 0.7);
         }
+        
         .progress {
-            height: 20px;
+            height: 8px;
+            background-color: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 0.6rem 0;
         }
-        .drone-path {
-            stroke: #007bff;
-            stroke-width: 2;
-            stroke-dasharray: 5, 5;
+        
+        .progress-bar {
+            background-color: var(--accent-primary);
+            border-radius: 4px;
         }
-        .delivery-path {
-            stroke: #28a745;
-            stroke-width: 2;
+        
+        .btn {
+            border-radius: 6px;
+            padding: 0.5rem 1rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.875rem;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
         }
+        
+        .btn-primary {
+            background-color: var(--accent-primary);
+            border-color: var(--accent-primary);
+        }
+        
+        .btn-primary:hover, .btn-primary:focus {
+            background-color: var(--accent-secondary);
+            border-color: var(--accent-secondary);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .btn-warning {
+            background-color: var(--warning);
+            border-color: var(--warning);
+            color: #212529;
+        }
+        
+        .btn-danger {
+            background-color: var(--danger);
+            border-color: var(--danger);
+        }
+        
         .battery-indicator {
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
             display: inline-block;
             margin-right: 5px;
         }
-        .battery-high { background-color: #28a745; }
-        .battery-medium { background-color: #ffc107; }
-        .battery-low { background-color: #dc3545; }
+        
+        .battery-high { 
+            background-color: var(--success);
+            box-shadow: 0 0 5px rgba(40, 167, 69, 0.7);
+        }
+        
+        .battery-medium { 
+            background-color: var(--warning);
+            box-shadow: 0 0 5px rgba(255, 193, 7, 0.7);
+        }
+        
+        .battery-low { 
+            background-color: var(--danger);
+            box-shadow: 0 0 5px rgba(220, 53, 69, 0.7);
+        }
+        
+        .stats-card {
+            margin-bottom: 1.5rem;
+        }
+        
+        .stats-card h6 {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stats-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        
+        .stats-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+        
+        .stats-item {
+            padding: 0.75rem;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-pending {
+            background-color: rgba(255, 193, 7, 0.2);
+            color: var(--warning);
+        }
+        
+        .status-active {
+            background-color: rgba(23, 162, 184, 0.2);
+            color: var(--info);
+        }
+        
+        .status-completed {
+            background-color: rgba(40, 167, 69, 0.2);
+            color: var(--success);
+        }
+        
+        .status-idle {
+            background-color: rgba(170, 170, 170, 0.2);
+            color: var(--text-secondary);
+        }
+        
+        .delivery-item {
+            display: flex;
+            flex-direction: column;
+            padding: 0.75rem;
+            background-color: rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid var(--accent-primary);
+        }
+        
+        .delivery-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+        
+        .delivery-id {
+            font-weight: 600;
+        }
+        
+        .delivery-status {
+            font-size: 0.75rem;
+        }
+        
+        .delivery-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .delivery-detail {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .detail-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        
+        .detail-value {
+            font-weight: 500;
+        }
+        
+        .priority-indicator {
+            display: flex;
+            align-items: center;
+        }
+        
+        .priority-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 3px;
+            background-color: var(--text-secondary);
+        }
+        
+        .priority-1 .priority-dot:nth-child(1) { background-color: var(--accent-primary); }
+        .priority-2 .priority-dot:nth-child(1),
+        .priority-2 .priority-dot:nth-child(2) { background-color: var(--accent-primary); }
+        .priority-3 .priority-dot { background-color: var(--accent-primary); }
+        
+        /* Dark theme for Leaflet map */
+        .leaflet-tile-pane {
+            filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+        }
+        
+        .connection-status {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            background-color: var(--card-bg);
+            border-radius: 6px;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        .connection-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            background-color: var(--danger);
+        }
+        
+        .connection-indicator.connected {
+            background-color: var(--success);
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--card-bg);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent-primary);
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-secondary);
+        }
+        
+        /* Improved popup styling */
+        .leaflet-popup-content-wrapper {
+            background-color: var(--card-bg);
+            color: var(--text-primary);
+            border-radius: 8px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+        }
+        
+        .leaflet-popup-tip {
+            background-color: var(--card-bg);
+        }
+        
+        /* Add some responsive adjustments */
+        @media (max-width: 992px) {
+            #map {
+                height: 500px;
+            }
+            
+            .dashboard-container {
+                height: auto;
+                overflow-y: visible;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container-fluid mt-3">
-        <h1>Fleet Management Dashboard</h1>
+    <nav class="navbar">
+        <div class="container-fluid">
+            <span class="navbar-brand">
+                <i class="fas fa-drone"></i> Fleet Management Dashboard
+            </span>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
         <div class="row">
-            <div class="col-md-9">
+            <div class="col-lg-9">
+                <div class="p-3">
                 <div id="map"></div>
+                </div>
             </div>
-            <div class="col-md-3">
-                <div class="card mb-3">
+            <div class="col-lg-3 dashboard-container">
+                <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Fleet Statistics</h5>
+                        <h5 class="card-title"><i class="fas fa-chart-line"></i> Fleet Statistics</h5>
                     </div>
                     <div class="card-body">
                         <div id="stats"></div>
                     </div>
                 </div>
-                <div class="card mb-3">
+                
+                <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Active Deliveries</h5>
+                        <h5 class="card-title"><i class="fas fa-shipping-fast"></i> Active Deliveries</h5>
                     </div>
                     <div class="card-body status-panel">
                         <div id="active-deliveries"></div>
                     </div>
                 </div>
+                
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Controls</h5>
+                        <h5 class="card-title"><i class="fas fa-gamepad"></i> Controls</h5>
                     </div>
                     <div class="card-body">
-                        <button id="start-fleet" class="btn btn-primary w-100 mb-2">Start Fleet Operations</button>
-                        <button id="pause-fleet" class="btn btn-warning w-100 mb-2" disabled>Pause Operations</button>
-                        <button id="reset-fleet" class="btn btn-danger w-100">Reset Simulation</button>
+                        <button id="start-fleet" class="btn btn-primary w-100 mb-2">
+                            <i class="fas fa-play me-1"></i> Start Fleet Operations
+                        </button>
+                        <button id="pause-fleet" class="btn btn-warning w-100 mb-2" disabled>
+                            <i class="fas fa-pause me-1"></i> Pause Operations
+                        </button>
+                        <button id="reset-fleet" class="btn btn-danger w-100">
+                            <i class="fas fa-redo-alt me-1"></i> Reset Simulation
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <div class="connection-status">
+        <div id="connection-indicator" class="connection-indicator"></div>
+        <span id="connection-text">Connecting...</span>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Global state management
+        const state = {
+            isSimulationRunning: false,
+            wsConnections: {
+                drone: null,
+                fleet: null,
+                delivery: null
+            },
+            connectionStatus: {
+                drone: false,
+                fleet: false,
+                delivery: false
+            },
+            data: {
+                drones: {},
+                deliveries: {},
+                stats: {}
+            }
+        };
+
+        // Map and visualization elements
+        let map = null;
+        const markers = {
+            drones: {},
+            deliveries: {},
+            paths: {
+                drones: {},
+                deliveries: {}
+            }
+        };
+
         // WebSocket connections
-        let droneSocket = null;
-        let fleetSocket = null;
-        let deliverySocket = null;
-        let wsConnected = false;
+        const wsEndpoints = {
+            drone: '/ws/drone-updates',
+            fleet: '/ws/fleet-status',
+            delivery: '/ws/delivery-updates'
+        };
 
-        // Initialize WebSocket connections
-        function initializeWebSockets() {
-            const wsBase = `ws://${window.location.host}`;
-            console.log('Initializing WebSocket connections...');
-            
-            function setupWebSocket(path, onMessageHandler, socketRef) {
-                const ws = new WebSocket(`${wsBase}${path}`);
-                
-                ws.onopen = () => {
-                    console.log(`WebSocket connected: ${path}`);
-                    wsConnected = true;
-                    updateConnectionStatus();
-                };
-                
-                ws.onmessage = (event) => {
-                    console.log(`Received message on ${path}:`, event.data);
-                    const data = JSON.parse(event.data);
-                    onMessageHandler(data);
-                };
-                
-                ws.onerror = (error) => {
-                    console.error(`WebSocket error on ${path}:`, error);
-                    wsConnected = false;
-                    updateConnectionStatus();
-                };
-                
-                ws.onclose = () => {
-                    console.log(`WebSocket closed: ${path}`);
-                    wsConnected = false;
-                    updateConnectionStatus();
-                    // Try to reconnect after 5 seconds
-                    setTimeout(() => {
-                        console.log(`Attempting to reconnect: ${path}`);
-                        setupWebSocket(path, onMessageHandler, socketRef);
-                    }, 5000);
-                };
-                
-                return ws;
-            }
-            
-            // Setup each WebSocket connection
-            droneSocket = setupWebSocket('/ws/drone-updates', handleDroneUpdate, 'droneSocket');
-            fleetSocket = setupWebSocket('/ws/fleet-status', handleFleetStatus, 'fleetSocket');
-            deliverySocket = setupWebSocket('/ws/delivery-updates', handleDeliveryUpdate, 'deliverySocket');
-        }
+        // Custom icons for map markers
+        const icons = {
+            drone: L.divIcon({
+                className: 'drone-marker',
+                html: '<div style="background-color: #2d88ff; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(45, 136, 255, 0.7);"></div>',
+                iconSize: [14, 14]
+            }),
+            pickup: L.divIcon({
+                className: 'delivery-marker pickup',
+                html: '<div style="background-color: #dc3545; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(220, 53, 69, 0.7);"></div>',
+                iconSize: [12, 12]
+            }),
+            dropoff: L.divIcon({
+                className: 'delivery-marker dropoff',
+                html: '<div style="background-color: #28a745; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(40, 167, 69, 0.7);"></div>',
+                iconSize: [12, 12]
+            })
+        };
 
-        function updateConnectionStatus() {
-            const startButton = document.getElementById('start-fleet');
-            if (startButton) {
-                startButton.disabled = !wsConnected;
-                if (!wsConnected) {
-                    startButton.textContent = 'Connecting...';
-                } else {
-                    startButton.textContent = 'Start Fleet Operations';
+        // API endpoints
+        const apiEndpoints = {
+            start: '/api/fleet/start',
+            pause: '/api/fleet/pause',
+            reset: '/api/fleet/reset',
+            status: '/api/fleet/status'
+        };
+
+        // Initialize application when DOM is ready
+        window.addEventListener('DOMContentLoaded', () => {
+            initializeElements();
+            initializeMap();
+            initializeWebSockets();
+            initializeEventListeners();
+            checkInitialStatus();
+        });
+
+        // Initialize DOM elements
+        function initializeElements() {
+            const elements = {
+                map: document.getElementById('map'),
+                stats: document.getElementById('stats'),
+                activeDeliveries: document.getElementById('active-deliveries'),
+                connectionIndicator: document.getElementById('connection-indicator'),
+                connectionText: document.getElementById('connection-text'),
+                buttons: {
+                    start: document.getElementById('start-fleet'),
+                    pause: document.getElementById('pause-fleet'),
+                    reset: document.getElementById('reset-fleet')
                 }
-            }
-        }
+            };
 
-        // Handle WebSocket messages
-        function handleDroneUpdate(data) {
-            console.log('Drone update:', data);
-            if (data.type === 'drone_positions') {
-                updateMap(data.data);
-            }
-        }
+            // Store elements in state for global access
+            state.elements = elements;
 
-        function handleFleetStatus(data) {
-            console.log('Fleet status:', data);
-            if (data.type === 'fleet_status') {
-                updateStats(data.data);
-                updateButtonStates(data.data.stats.is_running);
+            // Add event listeners to buttons
+            if (elements.buttons.start) {
+                elements.buttons.start.addEventListener('click', () => startFleet());
             }
-        }
-
-        function handleDeliveryUpdate(data) {
-            console.log('Delivery update:', data);
-            if (data.type === 'delivery_update') {
-                updateActiveDeliveries(data.data);
+            if (elements.buttons.pause) {
+                elements.buttons.pause.addEventListener('click', () => pauseFleet());
+            }
+            if (elements.buttons.reset) {
+                elements.buttons.reset.addEventListener('click', () => resetFleet());
             }
         }
 
         // Initialize map
-        const map = L.map('map').setView([28.6139, 77.2090], 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+        function initializeMap() {
+            if (map) {
+                console.log('Map already initialized');
+                return;
+            }
 
-        // Store markers and paths
-        const droneMarkers = {};
-        const deliveryMarkers = {};
-        const dronePaths = {};
-        const deliveryPaths = {};
+            try {
+                console.log('Initializing map...');
+                map = L.map('map').setView([28.6139, 77.2090], 12);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(map);
 
-        // Custom drone icon
-        const droneIcon = L.divIcon({
-            className: 'drone-icon',
-            html: '<div style="background-color: #007bff; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
-            iconSize: [16, 16]
-        });
+                // Apply dark theme to map tiles
+                const tilePane = document.querySelector('.leaflet-tile-pane');
+                if (tilePane) {
+                    tilePane.style.filter = 'brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7)';
+                }
+            } catch (error) {
+                console.error('Error initializing map:', error);
+                showToast('Failed to initialize map', 'error');
+            }
+        }
+
+        // Initialize WebSocket connections
+        function initializeWebSockets() {
+            Object.keys(wsEndpoints).forEach(type => {
+                initializeWebSocket(type);
+            });
+        }
+
+        // Initialize a single WebSocket connection
+        function initializeWebSocket(type) {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}${wsEndpoints[type]}`;
+            
+            try {
+                const wsConnection = new WebSocket(wsUrl);
+                
+                wsConnection.onopen = () => {
+                    console.log(`${type} WebSocket connected`);
+                    state.connectionStatus[type] = true;
+                    state.wsConnections[type] = wsConnection;
+                    updateConnectionStatus();
+                    updateButtonStates(state.isSimulationRunning);
+                };
+                
+                wsConnection.onclose = () => {
+                    console.log(`${type} WebSocket disconnected`);
+                    state.connectionStatus[type] = false;
+                    state.wsConnections[type] = null;
+                    updateConnectionStatus();
+                    updateButtonStates(false);
+                    
+                    // Attempt to reconnect after 5 seconds
+                    setTimeout(() => {
+                        if (!state.connectionStatus[type]) {
+                            console.log(`Attempting to reconnect ${type} WebSocket...`);
+                            initializeWebSocket(type);
+                        }
+                    }, 5000);
+                };
+                
+                wsConnection.onerror = (error) => {
+                    console.error(`${type} WebSocket error:`, error);
+                    showToast(`WebSocket error: ${type}`, 'error');
+                };
+                
+                wsConnection.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        processAndVisualize(type, data);
+                    } catch (error) {
+                        console.error(`Error processing ${type} message:`, error);
+                        showToast(`Error processing ${type} update: ${error.message}`, 'error');
+                    }
+                };
+            } catch (error) {
+                console.error(`Error setting up ${type} WebSocket:`, error);
+                showToast(`Failed to connect to ${type} WebSocket`, 'error');
+            }
+        }
+
+        // Initialize event listeners
+        function initializeEventListeners() {
+            // Add window focus/blur handlers for connection management
+            window.addEventListener('focus', () => {
+                checkConnections();
+            });
+
+            window.addEventListener('blur', () => {
+                state.isSimulationRunning = false;
+                updateButtonStates(false);
+            });
+        }
+
+        // Check initial fleet status
+        async function checkInitialStatus() {
+            try {
+                const response = await fetch(apiEndpoints.status);
+                const data = await response.json();
+                if (data.success) {
+                    state.isSimulationRunning = data.is_running;
+                    updateButtonStates(data.is_running);
+                }
+            } catch (error) {
+                console.error('Error checking initial status:', error);
+            }
+        }
+
+        // Check and restore connections if needed
+        function checkConnections() {
+            Object.keys(state.wsConnections).forEach(type => {
+                const ws = state.wsConnections[type];
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    initializeWebSocket(type);
+                }
+            });
+        }
 
         // Update button states
         function updateButtonStates(isRunning) {
             console.log('Updating button states, isRunning:', isRunning);
-            const startButton = document.getElementById('start-fleet');
-            const pauseButton = document.getElementById('pause-fleet');
-            const resetButton = document.getElementById('reset-fleet');
+            const { buttons } = state.elements;
             
-            if (startButton && pauseButton && resetButton) {
-                startButton.disabled = isRunning;
-                pauseButton.disabled = !isRunning;
-                resetButton.disabled = isRunning;
+            if (buttons.start && buttons.pause && buttons.reset) {
+                buttons.start.disabled = isRunning || !Object.values(state.connectionStatus).every(status => status);
+                buttons.pause.disabled = !isRunning;
+                buttons.reset.disabled = isRunning;
             } else {
                 console.error('Could not find one or more control buttons');
             }
         }
 
-        // Fleet control functions
-        async function startFleet() {
-            if (!wsConnected) {
-                alert('WebSocket connection not established. Please wait...');
-                return;
-            }
+        // Combined data processing and visualization
+        function processAndVisualize(type, data) {
+            console.log(`Processing ${type} update:`, data);
             
             try {
-                const response = await fetch('/api/fleet/start', {
+                switch(type) {
+                    case 'drone':
+                    case 'drone_updates':
+                    case 'drone_positions':
+                        if (data.type === 'drone_positions') {
+                            updateDroneVisualization(data.data);
+                        } else {
+                            updateDroneVisualization(data);
+                        }
+                        break;
+                    case 'fleet':
+                    case 'fleet_status':
+                        if (data.type === 'fleet_status') {
+                            updateFleetVisualization(data.data);
+                        } else {
+                            updateFleetVisualization(data);
+                        }
+                        break;
+                    case 'delivery':
+                    case 'delivery_updates':
+                        if (data.type === 'delivery_update') {
+                            updateDeliveryVisualization(data.data);
+                        } else {
+                            updateDeliveryVisualization(data);
+                        }
+                        break;
+                }
+            } catch (error) {
+                console.error(`Error processing ${type} data:`, error);
+                showToast(`Error updating ${type} visualization: ${error.message}`, 'error');
+            }
+        }
+
+        function updateDroneVisualization(data) {
+            if (!map) {
+                console.error('Map not initialized');
+                return;
+            }
+
+            console.log('Updating drone visualization with data:', data);
+            const drones = Array.isArray(data) ? data : [data];
+            
+            // Process and update each drone
+            drones.forEach(drone => {
+                // Handle both location and position fields
+                const dronePosition = drone.location || drone.position;
+                if (!dronePosition || 
+                    (typeof dronePosition.lat !== 'number' && typeof dronePosition.latitude !== 'number') || 
+                    (typeof dronePosition.lon !== 'number' && typeof dronePosition.longitude !== 'number')) {
+                    console.warn(`Invalid position data for drone:`, drone);
+                    return;
+                }
+
+                const droneId = drone.id || drone.drone_id;
+                const position = [
+                    dronePosition.lat || dronePosition.latitude,
+                    dronePosition.lon || dronePosition.longitude
+                ];
+                
+                // Update or create drone marker
+                if (!markers.drones[droneId]) {
+                    console.log(`Creating new drone marker for ${droneId} at position:`, position);
+                    markers.drones[droneId] = L.marker(position, { 
+                        icon: icons.drone,
+                        zIndexOffset: 1000
+                    }).addTo(map);
+                } else {
+                    console.log(`Updating drone marker ${droneId} to position:`, position);
+                    const currentPos = markers.drones[droneId].getLatLng();
+                    const newPos = L.latLng(position);
+                    
+                    if (currentPos.distanceTo(newPos) > 0.1) {
+                        markers.drones[droneId].setLatLng(position);
+                        markers.drones[droneId].getElement().classList.add('moving');
+                        setTimeout(() => {
+                            markers.drones[droneId].getElement().classList.remove('moving');
+                        }, 1000);
+                    }
+                }
+
+                // Store the drone data for path updates
+                state.data.drones[droneId] = drone;
+
+                // Update drone info and path
+                updateDroneInfo(droneId, drone, position);
+                if (drone.current_delivery) {
+                    updateDronePath(droneId, drone, position);
+                }
+            });
+        }
+
+        function updateDroneInfo(droneId, drone, position) {
+            const batteryLevel = drone.battery_level || drone.battery || 100;
+            const batteryColor = batteryLevel > 60 ? '#28a745' : 
+                               batteryLevel > 30 ? '#ffc107' : '#dc3545';
+            
+            let statusClass = 'status-idle';
+            if (drone.status === 'active' || drone.status === 'en_route') statusClass = 'status-active';
+            if (drone.status === 'charging') statusClass = 'status-pending';
+            
+            const popupContent = `
+                <div class="drone-popup">
+                    <h6>Drone ${droneId}</h6>
+                    <div class="status-row">
+                        <span class="label">Status:</span>
+                        <span class="status-badge ${statusClass}">${drone.status || 'Unknown'}</span>
+                    </div>
+                    <div class="battery-row">
+                        <span class="label">Battery:</span>
+                        <div class="battery-bar">
+                            <div class="battery-level" style="width: ${batteryLevel}%; background-color: ${batteryColor};"></div>
+                        </div>
+                        <span class="battery-text" style="color: ${batteryColor};">${batteryLevel.toFixed(1)}%</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Delivery:</span>
+                        <span class="value">${drone.current_delivery || 'None'}</span>
+                    </div>
+                    <div class="position-row">
+                        <span class="label">Position:</span>
+                        <span class="coordinates">[${position[0].toFixed(4)}, ${position[1].toFixed(4)}]</span>
+                    </div>
+                </div>
+            `;
+            
+            markers.drones[droneId].bindPopup(popupContent);
+        }
+
+        function updateDronePath(droneId, drone, position) {
+            if (drone.current_delivery && state.data.deliveries[drone.current_delivery]) {
+                const delivery = state.data.deliveries[drone.current_delivery];
+                if (delivery.pickup && delivery.dropoff) {
+                    const pathPoints = [
+                        position,
+                        [delivery.pickup.lat, delivery.pickup.lon],
+                        [delivery.dropoff.lat, delivery.dropoff.lon]
+                    ];
+                    
+                    if (!markers.paths.drones[droneId]) {
+                        markers.paths.drones[droneId] = L.polyline(pathPoints, {
+                            color: '#2d88ff',
+                            weight: 2,
+                            dashArray: '5, 5',
+                            opacity: 0.7
+                        }).addTo(map);
+                    } else {
+                        markers.paths.drones[droneId].setLatLngs(pathPoints);
+                    }
+                }
+            } else if (markers.paths.drones[droneId]) {
+                map.removeLayer(markers.paths.drones[droneId]);
+                delete markers.paths.drones[droneId];
+            }
+        }
+
+        function updateFleetVisualization(status) {
+            if (!status.stats) return;
+            
+            const stats = status.stats;
+            const completionRate = stats.total_deliveries > 0 ? 
+                (stats.completed_deliveries / stats.total_deliveries) * 100 : 0;
+            
+            // Update fleet status UI
+            state.elements.stats.innerHTML = `
+                <div class="stats-card">
+                    <h6>Delivery Progress</h6>
+                    <div class="stats-value">${stats.completed_deliveries}/${stats.total_deliveries}</div>
+                    <div class="progress">
+                        <div class="progress-bar" role="progressbar" style="width: ${completionRate}%"></div>
+                    </div>
+                    <div class="stats-label">${completionRate.toFixed(1)}% Complete</div>
+                </div>
+                
+                <div class="stats-card">
+                    <h6>Fleet Status</h6>
+                    <div class="stats-grid">
+                        <div class="stats-item">
+                            <div class="stats-value">${stats.active_drones}</div>
+                            <div class="stats-label">Active</div>
+                        </div>
+                        <div class="stats-item">
+                            <div class="stats-value">${stats.charging_drones}</div>
+                            <div class="stats-label">Charging</div>
+                        </div>
+                        <div class="stats-item">
+                            <div class="stats-value">${stats.total_drones - stats.active_drones - stats.charging_drones}</div>
+                            <div class="stats-label">Idle</div>
+                        </div>
+                        <div class="stats-item">
+                            <div class="stats-value">${stats.total_drones}</div>
+                            <div class="stats-label">Total</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stats-card">
+                    <h6>Performance Metrics</h6>
+                    <div class="stats-grid">
+                        <div class="stats-item">
+                            <div class="stats-value">${stats.avg_delivery_time?.toFixed(1) || 'N/A'}</div>
+                            <div class="stats-label">Avg Time (min)</div>
+                        </div>
+                        <div class="stats-item">
+                            <div class="stats-value">${stats.avg_battery_usage?.toFixed(1) || 'N/A'}</div>
+                            <div class="stats-label">Avg Battery (%)</div>
+                        </div>
+                        <div class="stats-item">
+                            <div class="stats-value">${(stats.total_distance / 1000).toFixed(1)}</div>
+                            <div class="stats-label">Distance (km)</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Update button states based on fleet status
+            updateButtonStates(status.is_running);
+        }
+
+        function updateDeliveryVisualization(data) {
+            if (!data) return;
+            console.log('Updating delivery visualization with data:', data);
+
+            const deliveries = data.deliveries || (Array.isArray(data) ? data : [data]);
+            
+            // Process and update each delivery
+            deliveries.forEach(delivery => {
+                const deliveryId = delivery.id || delivery.delivery_id;
+                
+                // Store the delivery data
+                state.data.deliveries[deliveryId] = delivery;
+
+                // Skip visualization if we don't have location data yet
+                if (!delivery.pickup_location && !delivery.dropoff_location && 
+                    !delivery.pickup && !delivery.dropoff) {
+                    console.log(`Delivery ${deliveryId} location data not available yet`);
+                    return;
+                }
+
+                const pickupLoc = delivery.pickup_location || delivery.pickup || {};
+                const dropoffLoc = delivery.dropoff_location || delivery.dropoff || {};
+
+                if (!pickupLoc.lat && !pickupLoc.latitude || !dropoffLoc.lat && !dropoffLoc.latitude) {
+                    console.log(`Waiting for complete location data for delivery ${deliveryId}`);
+                    return;
+                }
+
+                if (delivery.status !== 'completed') {
+                    updateDeliveryMarkers(deliveryId, {
+                        ...delivery,
+                        pickup: {
+                            lat: pickupLoc.lat || pickupLoc.latitude,
+                            lon: pickupLoc.lon || pickupLoc.longitude
+                        },
+                        dropoff: {
+                            lat: dropoffLoc.lat || dropoffLoc.latitude,
+                            lon: dropoffLoc.lon || dropoffLoc.longitude
+                        }
+                    });
+                    updateDeliveryPath(deliveryId, delivery);
+                } else {
+                    removeDeliveryVisualization(deliveryId);
+                }
+            });
+
+            // Update active deliveries panel
+            updateActiveDeliveriesPanel(deliveries);
+        }
+
+        function updateDeliveryMarkers(deliveryId, delivery) {
+            const pickupPos = [delivery.pickup.lat, delivery.pickup.lon];
+            const dropoffPos = [delivery.dropoff.lat, delivery.dropoff.lon];
+            const pickupId = `pickup_${deliveryId}`;
+            const dropoffId = `dropoff_${deliveryId}`;
+
+            // Create or update pickup marker
+            if (!markers.deliveries[pickupId]) {
+                markers.deliveries[pickupId] = L.marker(pickupPos, { icon: icons.pickup })
+                    .addTo(map)
+                    .bindPopup(createDeliveryPopup(deliveryId, delivery, 'Pickup'));
+            }
+
+            // Create or update dropoff marker
+            if (!markers.deliveries[dropoffId]) {
+                markers.deliveries[dropoffId] = L.marker(dropoffPos, { icon: icons.dropoff })
+                    .addTo(map)
+                    .bindPopup(createDeliveryPopup(deliveryId, delivery, 'Dropoff'));
+            }
+        }
+
+        function createDeliveryPopup(deliveryId, delivery, type) {
+            return `
+                <div class="delivery-popup">
+                    <h6>Delivery ${deliveryId}</h6>
+                    <div class="info-row">
+                        <span class="label">Type:</span>
+                        <span class="status-badge ${type === 'Pickup' ? 'status-pending' : 'status-completed'}">${type}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Status:</span>
+                        <span class="status-badge ${delivery.status === 'pending' ? 'status-pending' : 'status-active'}">${delivery.status}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Drone:</span>
+                        <span class="value">${delivery.assigned_drone || 'None'}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateDeliveryPath(deliveryId, delivery) {
+            const pathPoints = [
+                [delivery.pickup.lat, delivery.pickup.lon],
+                [delivery.dropoff.lat, delivery.dropoff.lon]
+            ];
+            
+            if (!markers.paths.deliveries[deliveryId]) {
+                markers.paths.deliveries[deliveryId] = L.polyline(pathPoints, {
+                    color: '#28a745',
+                    weight: 1,
+                    opacity: 0.5
+                }).addTo(map);
+            }
+        }
+
+        function removeDeliveryVisualization(deliveryId) {
+            ['pickup_', 'dropoff_'].forEach(prefix => {
+                const markerId = prefix + deliveryId;
+                if (markers.deliveries[markerId]) {
+                    map.removeLayer(markers.deliveries[markerId]);
+                    delete markers.deliveries[markerId];
+                }
+            });
+            
+            if (markers.paths.deliveries[deliveryId]) {
+                map.removeLayer(markers.paths.deliveries[deliveryId]);
+                delete markers.paths.deliveries[deliveryId];
+            }
+        }
+
+        function updateActiveDeliveriesPanel(deliveries) {
+            const activeDeliveries = Object.entries(deliveries)
+                .filter(([_, delivery]) => delivery.status !== 'completed')
+                .map(([deliveryId, delivery]) => {
+                    let statusClass = delivery.status === 'pending' ? 'status-pending' : 'status-active';
+                    
+                    return `
+                        <div class="delivery-item">
+                            <div class="delivery-header">
+                                <span class="delivery-id">Delivery ${deliveryId}</span>
+                                <span class="delivery-status status-badge ${statusClass}">${delivery.status}</span>
+                            </div>
+                            <div class="delivery-details">
+                                <div class="delivery-detail">
+                                    <span class="detail-label">Drone</span>
+                                    <span class="detail-value">${delivery.assigned_drone || 'Unassigned'}</span>
+                                </div>
+                                <div class="delivery-detail">
+                                    <span class="detail-label">Priority</span>
+                                    <div class="priority-indicator priority-${delivery.priority}">
+                                        <span class="priority-dot"></span>
+                                        <span class="priority-dot"></span>
+                                        <span class="priority-dot"></span>
+                                    </div>
+                                </div>
+                                <div class="delivery-detail">
+                                    <span class="detail-label">Weight</span>
+                                    <span class="detail-value">${delivery.weight} kg</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            state.elements.activeDeliveries.innerHTML = 
+                activeDeliveries || '<p class="text-muted">No active deliveries</p>';
+        }
+
+        // WebSocket setup and control functions
+        async function startFleet() {
+            if (!state.elements.buttons.start) return;
+            
+            try {
+                const response = await fetch(apiEndpoints.start, { 
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -234,226 +1111,203 @@
                 
                 const data = await response.json();
                 
-                if (!response.ok) {
-                    console.error('Failed to start fleet:', data);
-                    alert(`Failed to start fleet: ${data.detail?.message || data.detail || 'Unknown error'}`);
-                    return;
-                }
-
-                console.log('Fleet started:', data);
-                // Only update button states if start was successful
-                if (data.status === 'started') {
+                if (data.success) {
+                    state.isSimulationRunning = true;
                     updateButtonStates(true);
+                    showToast('Fleet operations started successfully', 'success');
+                } else {
+                    if (data.error === 'FleetAlreadyRunning') {
+                        showToast('Fleet is already running. Please pause or reset first.', 'warning');
+                    } else {
+                        showToast(`Failed to start fleet: ${data.error}`, 'error');
+                    }
                 }
             } catch (error) {
                 console.error('Error starting fleet:', error);
-                alert(`Error starting fleet: ${error.message}`);
+                showToast('Failed to start fleet operations', 'error');
             }
         }
 
         async function pauseFleet() {
+            if (!state.elements.buttons.pause) return;
+            
             try {
-                const response = await fetch('/api/fleet/pause', {
+                const response = await fetch(apiEndpoints.pause, { 
                     method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
                 });
                 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    alert(`Failed to pause fleet: ${errorData.detail || 'Unknown error'}`);
-                    return;
-                }
-
                 const data = await response.json();
-                console.log('Fleet paused:', data);
-                updateButtonStates(false);
+                
+                if (data.success) {
+                    state.isSimulationRunning = false;
+                    updateButtonStates(false);
+                    showToast('Fleet operations paused', 'success');
+                } else {
+                    showToast(`Failed to pause fleet: ${data.error}`, 'error');
+                }
             } catch (error) {
                 console.error('Error pausing fleet:', error);
-                alert(`Error pausing fleet: ${error.message}`);
+                showToast('Failed to pause fleet operations', 'error');
             }
         }
 
         async function resetFleet() {
+            if (!state.elements.buttons.reset) return;
+            
             try {
-                const response = await fetch('/api/fleet/reset', {
+                const response = await fetch(apiEndpoints.reset, { 
                     method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
                 });
                 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    alert(`Failed to reset fleet: ${errorData.detail || 'Unknown error'}`);
-                    return;
-                }
-
                 const data = await response.json();
-                console.log('Fleet reset:', data);
-                location.reload();
+                
+                if (data.success) {
+                    state.isSimulationRunning = false;
+                    clearMapElements();
+                    clearUIElements();
+                    updateButtonStates(false);
+                    showToast('Fleet reset successfully', 'success');
+                } else {
+                    showToast(`Failed to reset fleet: ${data.error}`, 'error');
+                }
             } catch (error) {
                 console.error('Error resetting fleet:', error);
-                alert(`Error resetting fleet: ${error.message}`);
+                showToast('Failed to reset fleet', 'error');
             }
         }
 
-        // Event listeners
-        document.getElementById('start-fleet').addEventListener('click', startFleet);
-        document.getElementById('pause-fleet').addEventListener('click', pauseFleet);
-        document.getElementById('reset-fleet').addEventListener('click', resetFleet);
-
-        // Initialize WebSockets
-        initializeWebSockets();
-
-        // Update map with drone and delivery positions
-        function updateMap(status) {
-            // Update drone markers and paths
-            Object.entries(status.drones).forEach(([droneId, drone]) => {
-                const position = [drone.location.lat, drone.location.lon];
-                
-                // Update or create drone marker
-                if (droneMarkers[droneId]) {
-                    droneMarkers[droneId].setLatLng(position);
-                } else {
-                    droneMarkers[droneId] = L.marker(position, {icon: droneIcon}).addTo(map);
-                }
-
-                // Update drone path
-                if (drone.current_delivery) {
-                    const delivery = status.deliveries[drone.current_delivery];
-                    if (delivery) {
-                        const pickup = [delivery.pickup.lat, delivery.pickup.lon];
-                        const dropoff = [delivery.dropoff.lat, delivery.dropoff.lon];
-                        
-                        if (!dronePaths[droneId]) {
-                            dronePaths[droneId] = L.polyline([position, pickup, dropoff], {
-                                color: '#007bff',
-                                weight: 2,
-                                dashArray: '5, 5'
-                            }).addTo(map);
-                        } else {
-                            dronePaths[droneId].setLatLngs([position, pickup, dropoff]);
-                        }
-                    }
-                }
-
-                // Update popup
-                droneMarkers[droneId].bindPopup(`
-                    <strong>Drone ${droneId}</strong><br>
-                    Status: ${drone.status}<br>
-                    Battery: ${getBatteryIndicator(drone.battery_level)} ${drone.battery_level.toFixed(1)}%<br>
-                    Completed: ${drone.completed_deliveries}<br>
-                    Current Delivery: ${drone.current_delivery || 'None'}
-                `);
-            });
-
-            // Update delivery markers and paths
-            Object.entries(status.deliveries).forEach(([deliveryId, delivery]) => {
-                if (delivery.status !== 'completed') {
-                    // Update pickup marker
-                    const pickupId = `pickup_${deliveryId}`;
-                    const pickupPos = [delivery.pickup.lat, delivery.pickup.lon];
-                    if (!deliveryMarkers[pickupId]) {
-                        deliveryMarkers[pickupId] = L.circleMarker(pickupPos, {
-                            radius: 6,
-                            fillColor: '#ff0000',
-                            color: '#fff',
-                            weight: 2,
-                            opacity: 1,
-                            fillOpacity: 0.8
-                        }).addTo(map);
-                    }
-                    deliveryMarkers[pickupId].bindPopup(`
-                        <strong>Delivery ${deliveryId}</strong><br>
-                        Type: Pickup<br>
-                        Status: ${delivery.status}<br>
-                        Assigned to: ${delivery.assigned_drone || 'None'}
-                    `);
-
-                    // Update dropoff marker
-                    const dropoffId = `dropoff_${deliveryId}`;
-                    const dropoffPos = [delivery.dropoff.lat, delivery.dropoff.lon];
-                    if (!deliveryMarkers[dropoffId]) {
-                        deliveryMarkers[dropoffId] = L.circleMarker(dropoffPos, {
-                            radius: 6,
-                            fillColor: '#28a745',
-                            color: '#fff',
-                            weight: 2,
-                            opacity: 1,
-                            fillOpacity: 0.8
-                        }).addTo(map);
-                    }
-                    deliveryMarkers[dropoffId].bindPopup(`
-                        <strong>Delivery ${deliveryId}</strong><br>
-                        Type: Dropoff<br>
-                        Status: ${delivery.status}<br>
-                        Assigned to: ${delivery.assigned_drone || 'None'}
-                    `);
-
-                    // Update delivery path
-                    if (!deliveryPaths[deliveryId]) {
-                        deliveryPaths[deliveryId] = L.polyline([pickupPos, dropoffPos], {
-                            color: '#28a745',
-                            weight: 2
-                        }).addTo(map);
-                    }
-                }
-            });
-        }
-
-        function getBatteryIndicator(level) {
-            let className = 'battery-low';
-            if (level > 60) className = 'battery-high';
-            else if (level > 30) className = 'battery-medium';
-            return `<span class="battery-indicator ${className}"></span>`;
-        }
-
-        // Update statistics panel with more detailed information
-        function updateStats(status) {
-            const stats = status.stats;
-            const completionRate = (stats.completed_deliveries / stats.total_deliveries) * 100;
+        function clearMapElements() {
+            // Clear all markers and paths
+            Object.values(markers.drones).forEach(marker => map.removeLayer(marker));
+            Object.values(markers.deliveries).forEach(marker => map.removeLayer(marker));
+            Object.values(markers.paths.drones).forEach(path => map.removeLayer(path));
+            Object.values(markers.paths.deliveries).forEach(path => map.removeLayer(path));
             
-            const statsHtml = `
-                <div class="stats-card">
-                    <h6>Delivery Progress</h6>
-                    <div class="progress">
-                        <div class="progress-bar" role="progressbar" style="width: ${completionRate}%">
-                            ${completionRate.toFixed(1)}%
-                        </div>
-                    </div>
-                    <small>${stats.completed_deliveries} / ${stats.total_deliveries} completed</small>
-                </div>
-                <div class="stats-card">
-                    <h6>Fleet Status</h6>
-                    <p>Active Drones: ${stats.active_drones}</p>
-                    <p>Charging Drones: ${stats.charging_drones}</p>
-                    <p>Idle Drones: ${stats.total_drones - stats.active_drones - stats.charging_drones}</p>
-                </div>
-                <div class="stats-card">
-                    <h6>Performance Metrics</h6>
-                    <p>Average Delivery Time: ${stats.avg_delivery_time?.toFixed(1) || 'N/A'} min</p>
-                    <p>Average Battery Usage: ${stats.avg_battery_usage?.toFixed(1) || 'N/A'}%</p>
-                    <p>Total Distance Traveled: ${(stats.total_distance / 1000).toFixed(1)} km</p>
-                </div>
-            `;
-            document.getElementById('stats').innerHTML = statsHtml;
+            // Reset collections
+            markers.drones = {};
+            markers.deliveries = {};
+            markers.paths.drones = {};
+            markers.paths.deliveries = {};
         }
 
-        // Update active deliveries panel with more details
-        function updateActiveDeliveries(status) {
-            const activeDeliveries = Object.entries(status.deliveries)
-                .filter(([_, delivery]) => delivery.status !== 'completed')
-                .map(([deliveryId, delivery]) => `
-                    <div class="card mb-2">
-                        <div class="card-body p-2">
-                            <h6 class="card-title">Delivery ${deliveryId}</h6>
-                            <p class="card-text">
-                                Status: ${delivery.status}<br>
-                                Assigned to: ${delivery.assigned_drone || 'Unassigned'}<br>
-                                Priority: ${delivery.priority}<br>
-                                Weight: ${delivery.weight} kg
-                            </p>
-                        </div>
-                    </div>
-                `).join('');
-            document.getElementById('active-deliveries').innerHTML = activeDeliveries;
+        function clearUIElements() {
+            if (state.elements.stats) {
+                state.elements.stats.innerHTML = '';
+            }
+            if (state.elements.activeDeliveries) {
+                state.elements.activeDeliveries.innerHTML = '';
+            }
         }
+
+        // Helper functions
+        function updateConnectionStatus() {
+            const allConnected = Object.values(state.connectionStatus).every(status => status);
+            const indicator = state.elements.connectionIndicator;
+            const text = state.elements.connectionText;
+            
+            if (allConnected) {
+                indicator.classList.add('connected');
+                text.textContent = 'Connected';
+            } else {
+                indicator.classList.remove('connected');
+                text.textContent = 'Connecting...';
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            // Create toast container if it doesn't exist
+            let toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toast-container';
+                toastContainer.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    z-index: 9999;
+                `;
+                document.body.appendChild(toastContainer);
+            }
+
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.style.cssText = `
+                background-color: var(--card-bg);
+                color: var(--text-primary);
+                padding: 12px 24px;
+                border-radius: 6px;
+                margin-bottom: 10px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                display: flex;
+                align-items: center;
+                animation: slideIn 0.3s ease-out;
+                border-left: 4px solid ${getToastColor(type)};
+            `;
+
+            // Add icon based on type
+            const icon = document.createElement('i');
+            icon.className = `fas ${getToastIcon(type)} me-2`;
+            icon.style.color = getToastColor(type);
+            toast.appendChild(icon);
+
+            // Add message
+            const messageSpan = document.createElement('span');
+            messageSpan.textContent = message;
+            toast.appendChild(messageSpan);
+
+            // Add to container
+            toastContainer.appendChild(toast);
+
+            // Remove after 5 seconds
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => toastContainer.removeChild(toast), 300);
+            }, 5000);
+        }
+
+        function getToastColor(type) {
+            switch (type) {
+                case 'success': return 'var(--success)';
+                case 'error': return 'var(--danger)';
+                case 'warning': return 'var(--warning)';
+                default: return 'var(--info)';
+            }
+        }
+
+        function getToastIcon(type) {
+            switch (type) {
+                case 'success': return 'fa-check-circle';
+                case 'error': return 'fa-exclamation-circle';
+                case 'warning': return 'fa-exclamation-triangle';
+                default: return 'fa-info-circle';
+            }
+        }
+
+        // Add toast styles
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+            
+            .toast {
+                transition: all 0.3s ease-out;
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html> 

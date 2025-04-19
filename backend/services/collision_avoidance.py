@@ -27,13 +27,30 @@ class CollisionAvoidanceService:
         self.horizontal_safe_distance = 0.01  # 10 meters
         self.vertical_safe_distance = 5.0  # 5 meters
         self.time_window = 10  # 10 seconds
-        self.altitude_levels = [40, 60, 80, 100, 120, 140]  # More altitude levels
+        self.ALTITUDE_LEVELS = [40, 60, 80, 100, 120, 140]  # More altitude levels
         self.assigned_altitudes = {}  # Track assigned altitudes
         self.collision_warning_threshold = 0.015  # 15 meters
         self.emergency_avoidance_threshold = 0.008  # 8 meters
         self.max_velocity = 30.0  # Maximum velocity in m/s
         self.min_velocity = 5.0   # Minimum velocity in m/s
+        self.route_tree = None  # Will be initialized when needed
         
+    def _build_route_tree(self):
+        """Build KD-tree from active route waypoints"""
+        if not self.active_routes:
+            self.route_tree = None
+            return
+            
+        points = []
+        for route in self.active_routes.values():
+            for waypoint in route.waypoints:
+                points.append([waypoint.lat, waypoint.lon, waypoint.altitude])
+        
+        if points:
+            self.route_tree = KDTree(np.array(points))
+        else:
+            self.route_tree = None
+            
     def get_next_altitude(self, drone_id: str) -> float:
         """Get the next available altitude for a drone"""
         # If drone already has an altitude, keep it
@@ -41,13 +58,13 @@ class CollisionAvoidanceService:
             return self.assigned_altitudes[drone_id]
             
         # Find the first unused altitude level
-        for altitude in self.altitude_levels:
+        for altitude in self.ALTITUDE_LEVELS:
             if altitude not in self.assigned_altitudes.values():
                 self.assigned_altitudes[drone_id] = altitude
                 return altitude
                 
         # If all levels are used, increment by 20 meters from the highest
-        max_altitude = max(self.altitude_levels)
+        max_altitude = max(self.ALTITUDE_LEVELS)
         new_altitude = max_altitude + 20
         self.assigned_altitudes[drone_id] = new_altitude
         return new_altitude
@@ -151,7 +168,7 @@ class CollisionAvoidanceService:
     
     def suggest_alternative_altitude(self, current_altitude: float, used_altitudes: List[float]) -> float:
         """Suggest an alternative altitude level that's not in use"""
-        available_levels = [alt for alt in self.altitude_levels 
+        available_levels = [alt for alt in self.ALTITUDE_LEVELS 
                           if abs(alt - current_altitude) > self.vertical_safe_distance and 
                           all(abs(alt - used) > self.vertical_safe_distance for used in used_altitudes)]
         
@@ -174,6 +191,11 @@ class CollisionAvoidanceService:
     async def register_route(self, drone_id: str, route: DroneRoute) -> Tuple[bool, Optional[DroneRoute]]:
         """Register a new route and check for collisions. Returns (success, modified_route)"""
         try:
+            # If no active routes, just register this one
+            if not self.active_routes:
+                self.active_routes[drone_id] = route
+                return True, route
+                
             # Check for collisions with all active routes
             collision_found = False
             modified_route = route
@@ -198,20 +220,18 @@ class CollisionAvoidanceService:
                     new_velocity = self.adjust_velocity(drone_id, max_risk_score)
                     
                     # Create new waypoints with adjusted altitude
-                    new_waypoints = [
-                        Position4D(
+                    modified_waypoints = []
+                    for wp in modified_route.waypoints:
+                        modified_waypoints.append(Position4D(
                             lat=wp.lat,
                             lon=wp.lon,
                             altitude=new_altitude,
                             timestamp=wp.timestamp
-                        )
-                        for wp in modified_route.waypoints
-                    ]
+                        ))
                     
-                    # Update modified route
                     modified_route = DroneRoute(
                         drone_id=drone_id,
-                        waypoints=new_waypoints,
+                        waypoints=modified_waypoints,
                         start_time=route.start_time,
                         end_time=route.end_time,
                         velocity=new_velocity,
@@ -220,12 +240,14 @@ class CollisionAvoidanceService:
             
             # Register the route (either original or modified)
             self.active_routes[drone_id] = modified_route
+            self._build_route_tree()  # Update KD-tree
             
-            # Return success if no collisions or if we successfully modified the route
             return True, modified_route
             
         except Exception as e:
-            print(f"Error registering route for drone {drone_id}: {str(e)}")
+            print(f"Error registering route: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
             return False, None
 
     def deregister_route(self, drone_id: str):

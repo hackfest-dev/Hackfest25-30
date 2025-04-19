@@ -126,7 +126,7 @@ class RoutingService:
                 
             # If no start_time provided, use current time
             if start_time is None:
-                start_time = datetime.now()
+                start_time = datetime.now(UTC)
                 print(f"Using current time: {start_time}")
                 
             # Get initial altitude for the drone

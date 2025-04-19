@@ -6,9 +6,10 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional, Dict, Any
 import uvicorn
-from datetime import datetime
+from datetime import datetime, timezone as UTC, timedelta
 import sys
 import os
+import logging
 
 # Add the parent directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -54,14 +55,25 @@ drone_simulation = DroneSimulation()
 fleet_manager = FleetManager(num_drones=5, num_deliveries=10)
 fleet_manager.set_time_scale(10.0)  # Make simulation run 10x faster
 
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 @app.on_event("startup")
 async def startup_event():
-    """Initialize services on startup"""
+    """Initialize the fleet manager on startup"""
+    global fleet_manager
     try:
-        # Initialize fleet manager (but don't start it)
-        fleet_manager._initialize_drones(fleet_manager.num_drones)
+        # Initialize fleet manager with default settings
+        fleet_manager = FleetManager(num_drones=5, num_deliveries=10)
+        logger.info("Fleet manager instance created")
+        
+        # Initialize deliveries
+        await fleet_manager.initialize()
+        logger.info("Fleet manager initialized with deliveries")
+        
     except Exception as e:
-        print(f"Error during startup: {str(e)}")
+        logger.error(f"Error during startup: {str(e)}")
         raise
 
 # Basic models for the simulation
@@ -108,6 +120,9 @@ class DeliveryPointResponse(BaseModel):
     priority: int
     time_window_start: float
     time_window_end: float
+
+class TimeScaleRequest(BaseModel):
+    scale: float
 
 # Root route for the map interface
 @app.get("/", response_class=HTMLResponse)
@@ -383,8 +398,10 @@ async def get_deliveries(simulation_id: str):
 @app.post("/api/fleet/start")
 async def start_fleet():
     """Start the fleet operations"""
+    logger.info("Received request to start fleet operations")
     try:
         if fleet_manager.is_running:
+            logger.warning("Fleet is already running")
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -395,10 +412,14 @@ async def start_fleet():
         
         # Start the fleet
         try:
+            logger.info("Attempting to start fleet manager...")
             success = await fleet_manager.start()
             if not success:
+                logger.error("Failed to start fleet operations")
                 raise ValueError("Failed to start fleet operations")
+            logger.info("Fleet manager started successfully")
         except ValueError as e:
+            logger.error(f"Fleet start failed: {str(e)}")
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -408,6 +429,7 @@ async def start_fleet():
             )
         
         # Start processing deliveries
+        logger.info("Starting delivery processing task")
         asyncio.create_task(fleet_manager.process_deliveries())
         return {
             "status": "started",
@@ -416,6 +438,7 @@ async def start_fleet():
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Unexpected error starting fleet: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -539,17 +562,36 @@ async def get_fleet_management(request: Request):
         {"request": request}
     )
 
+@app.post("/api/fleet/time-scale")
+async def set_time_scale(request: TimeScaleRequest):
+    """Set the simulation time scale"""
+    try:
+        if request.scale <= 0:
+            raise ValueError("Time scale must be positive")
+        if request.scale > 100:
+            raise ValueError("Time scale cannot exceed 100x")
+            
+        fleet_manager.set_time_scale(request.scale)
+        return {"status": "success", "time_scale": request.scale}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # WebSocket endpoints
 @app.websocket("/ws/drone-updates")
 async def websocket_drone_updates(websocket: WebSocket):
+    logger.info("New drone updates WebSocket connection request")
     await handle_drone_updates(websocket)
 
 @app.websocket("/ws/fleet-status")
 async def websocket_fleet_status(websocket: WebSocket):
+    logger.info("New fleet status WebSocket connection request")
     await handle_fleet_status(websocket)
 
 @app.websocket("/ws/delivery-updates")
 async def websocket_delivery_updates(websocket: WebSocket):
+    logger.info("New delivery updates WebSocket connection request")
     await handle_delivery_updates(websocket)
 
 if __name__ == "__main__":
